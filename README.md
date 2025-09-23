@@ -1,6 +1,6 @@
 # ⏳ TimeCapsule
 
-**Save a message for later—you or someone you care about.**
+**Save a message for later - you or someone you care about.**
 Whether it’s a future you, a birthday surprise, or just a locked diary entry, TimeCapsule helps you store messages that *only unlock when the time is right*.
 
 ---
