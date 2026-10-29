@@ -8,11 +8,16 @@ const { PrismaClient } = require("@prisma/client");
 const { authenticateToken, generateAccessToken } = require("./auth");
 require("dotenv").config();
 
+if (!process.env.JWT_SECRET) {
+    console.error("JWT_SECRET is not set. Copy .env.example to .env and fill it in.");
+    process.exit(1);
+}
+
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: "http://localhost:3000" }));
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:3000" }));
 app.use(express.json());
 
 // Health check
@@ -23,6 +28,8 @@ app.post("/signup", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password)
         return res.status(400).json({ error: "Email and password required" });
+    if (password.length < 8)
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ error: "Email already exists" });
@@ -87,11 +94,17 @@ app.post("/capsules", authenticateToken, async (req, res) => {
     if (!title || !message || !unlockDate)
         return res.status(400).json({ error: "Missing required fields" });
 
+    const unlockAt = new Date(unlockDate);
+    if (Number.isNaN(unlockAt.getTime()))
+        return res.status(400).json({ error: "unlockDate is not a valid date" });
+    if (unlockAt <= new Date())
+        return res.status(400).json({ error: "unlockDate must be in the future" });
+
     const capsule = await prisma.capsule.create({
         data: {
             title,
             message,
-            unlockDate: new Date(unlockDate),
+            unlockDate: unlockAt,
             isPublic: Boolean(isPublic),
             ownerId: req.user.id,
         },
@@ -134,9 +147,11 @@ app.get("/capsules/slug/:slug", authenticateToken, async (req, res) => {
 
 // Delete capsule
 app.delete("/capsules/:id", authenticateToken, async (req, res) => {
-    const capsule = await prisma.capsule.findUnique({
-        where: { id: Number(req.params.id) },
-    });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id))
+        return res.status(400).json({ error: "Invalid capsule id" });
+
+    const capsule = await prisma.capsule.findUnique({ where: { id } });
 
     if (!capsule) return res.status(404).json({ error: "Capsule not found" });
     if (capsule.ownerId !== req.user.id)
@@ -159,7 +174,23 @@ app.get("/capsules/public/:slug", async (req, res) => {
     if (now < capsule.unlockDate)
         return res.json({ status: "locked", unlocksAt: capsule.unlockDate });
 
-    return res.json({ status: "unlocked", capsule });
+    // Only expose display fields: never the owner id, contact email or internal flags.
+    return res.json({
+        status: "unlocked",
+        capsule: {
+            title: capsule.title,
+            message: capsule.message,
+            unlockDate: capsule.unlockDate,
+            createdAt: capsule.createdAt,
+        },
+    });
+});
+
+// Any error thrown in a route (Express 5 forwards async errors here) gets a JSON 500
+// instead of an HTML stack trace.
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong" });
 });
 
 // Start server
