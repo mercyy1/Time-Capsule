@@ -1,5 +1,6 @@
 // The one place tests get the app from, so the server's files can be
 // reorganized without changing any test.
-const { app, prisma } = require("../../index");
+const { createApp } = require("../../src/app");
+const { prisma } = require("../../src/db");
 
-module.exports = { app, prisma };
+module.exports = { app: createApp(), prisma };

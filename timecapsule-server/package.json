@@ -1,10 +1,10 @@
 {
   "name": "timecapsule-server",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "test": "jest",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
