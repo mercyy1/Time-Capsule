@@ -11,19 +11,17 @@ export default function Dashboard() {
     const [search, setSearch] = useState("");
 
     useEffect(() => {
+        async function fetchCapsules() {
+            try {
+                const res = await api.get("/capsules");
+                setCapsules(res.data);
+            } catch {
+                alert("Failed to load capsules");
+            }
+            setLoading(false);
+        }
         fetchCapsules();
     }, []);
-
-    async function fetchCapsules() {
-        setLoading(true);
-        try {
-            const res = await api.get("/capsules");
-            setCapsules(res.data);
-        } catch {
-            alert("Failed to load capsules");
-        }
-        setLoading(false);
-    }
 
     function handleLogout() {
         logout();

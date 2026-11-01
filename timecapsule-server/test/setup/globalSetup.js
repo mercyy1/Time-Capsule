@@ -19,6 +19,7 @@ module.exports = function globalSetup() {
       "Could not apply migrations to the test database. Is it running? " +
         "Start it with `docker compose up -d` from the repository root.\n" +
         `${err.stdout ?? ""}${err.stderr ?? ""}`,
+      { cause: err },
     );
   }
 };

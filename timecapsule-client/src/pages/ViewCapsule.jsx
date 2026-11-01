@@ -78,8 +78,6 @@ export default function ViewCapsule() {
   if (status === "loading") return <p className="p-6">Loading...</p>;
   if (status === "error") return <p className="p-6">Capsule not found or error occurred.</p>;
 
-  const isUnlocked = new Date(capsule.unlockDate) <= new Date();
-
   return (
     <div className="max-w-xl mx-auto p-6 bg-white shadow-lg rounded mt-8">
       <h2 className="text-2xl font-bold mb-4">{capsule.title}</h2>
