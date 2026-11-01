@@ -1,0 +1,26 @@
+# Local development database: `docker compose up -d`
+name: timecapsule
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: timecapsule
+      POSTGRES_PASSWORD: timecapsule
+      POSTGRES_DB: timecapsule
+    ports:
+      # Bound to localhost only, so the database isn't reachable from your network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # Postgres 18+ keeps its data under /var/lib/postgresql (not .../data).
+      - pgdata:/var/lib/postgresql
+      # Creates the timecapsule_test database on first start.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timecapsule -d timecapsule"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
