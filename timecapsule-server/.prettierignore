@@ -1,0 +1,2 @@
+# npm writes this file; formatting it would only create noise in diffs.
+package-lock.json
