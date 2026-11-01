@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "test": "jest",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy"
@@ -24,12 +25,15 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "jest": "^30.5.2",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.3.1"
   },
   "allowScripts": {
     "@prisma/client": true,
     "@prisma/engines": true,
     "prisma": true,
-    "bcrypt": true
+    "bcrypt": true,
+    "@parcel/watcher": false
   }
 }
