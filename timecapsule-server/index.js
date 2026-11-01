@@ -199,7 +199,11 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: "Something went wrong" });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+module.exports = { app, prisma };
+
+// Listen only when started directly (`node index.js`), not when tests import the app.
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+    });
+}
