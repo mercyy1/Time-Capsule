@@ -1,23 +1,29 @@
 // server/index.js
 
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { PrismaClient } = require("@prisma/client");
 const { authenticateToken, generateAccessToken } = require("./auth");
-require("dotenv").config();
+const { getEnv, EnvError } = require("./src/config/env");
 
-if (!process.env.JWT_SECRET) {
-    console.error("JWT_SECRET is not set. Copy .env.example to .env and fill it in.");
+let env;
+try {
+    env = getEnv();
+} catch (err) {
+    if (!(err instanceof EnvError)) throw err;
+    console.error(err.message);
     process.exit(1);
 }
 
 const prisma = new PrismaClient();
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = env.PORT;
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:3000" }));
+app.use(cors({ origin: env.CLIENT_ORIGIN }));
 app.use(express.json());
 
 // Health check
