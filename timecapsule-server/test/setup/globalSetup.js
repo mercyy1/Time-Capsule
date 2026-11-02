@@ -35,7 +35,12 @@ module.exports = async function globalSetup() {
   try {
     execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], {
       cwd: path.join(__dirname, "..", ".."),
-      env: { ...process.env, DATABASE_URL: testDatabaseUrl },
+      // Migrations use the direct connection (see prisma/schema.prisma).
+      env: {
+        ...process.env,
+        DATABASE_URL: testDatabaseUrl,
+        DATABASE_URL_UNPOOLED: testDatabaseUrl,
+      },
       encoding: "utf8",
       stdio: "pipe",
     });

@@ -7,6 +7,9 @@ Object.assign(process.env, {
   NODE_ENV: "test",
   PORT: "5000",
   DATABASE_URL: testDatabaseUrl,
+  // Only Prisma's command line reads it (migrations), but a developer's .env
+  // mustn't point it at another database.
+  DATABASE_URL_UNPOOLED: testDatabaseUrl,
   JWT_SECRET: "test-only-secret-that-is-at-least-32-characters",
   CLIENT_ORIGIN: "http://localhost:3000",
   TRUST_PROXY: "0",
