@@ -8,11 +8,11 @@ datasource db {
 }
 
 model User {
-  id       Int       @id @default(autoincrement())
-  email    String    @unique
-  password String
-  capsules Capsule[]
-  createdAt DateTime @default(now())
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  capsules  Capsule[]
+  createdAt DateTime  @default(now())
 }
 
 model Capsule {
@@ -20,11 +20,17 @@ model Capsule {
   title      String
   message    String
   unlockDate DateTime
-  email      String?  // Optional email
+  email      String? // Reserved for unlock emails (not used yet)
   isPublic   Boolean  @default(false)
-  ownerId   Int?
-  owner     User? @relation(fields: [ownerId], references: [id])
-  notified   Boolean  @default(false) // Has email been sent?
+  // Every capsule has an owner; deleting a user deletes their capsules.
+  ownerId    Int
+  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  notified   Boolean  @default(false) // Reserved: has the unlock email been sent?
   slug       String   @unique @default(uuid())
   createdAt  DateTime @default(now())
+
+  // A user's capsule list: filtered by owner, sorted by unlock date.
+  @@index([ownerId, unlockDate])
+  // The unlock-email job: capsules not yet notified whose date has passed.
+  @@index([notified, unlockDate])
 }
