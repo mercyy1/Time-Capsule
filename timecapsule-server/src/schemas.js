@@ -46,6 +46,12 @@ const loginBody = body({
   password: z.string(text("Password")).min(1, { error: "Password is required" }),
 });
 
+// The token from an emailed link. Any short string passes: one that isn't a
+// working link is answered like an expired one.
+const linkToken = z.string(text("Token")).max(100, { error: "Token is too long" });
+
+const verifyEmailBody = body({ token: linkToken });
+
 const yearsFromNow = (years) => {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() + years);
@@ -103,4 +109,11 @@ const capsuleIdParams = z.object({
 const slug = z.uuid();
 const isSlug = (value) => slug.safeParse(value).success;
 
-module.exports = { signupBody, loginBody, newCapsuleBody, capsuleIdParams, isSlug };
+module.exports = {
+  signupBody,
+  loginBody,
+  verifyEmailBody,
+  newCapsuleBody,
+  capsuleIdParams,
+  isSlug,
+};

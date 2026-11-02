@@ -1,6 +1,7 @@
 const request = require("supertest");
-const { buildApp, prisma, RATE_LIMITS } = require("./helpers/app");
+const { buildApp, prisma, settle, RATE_LIMITS } = require("./helpers/app");
 const { resetDatabase } = require("./helpers/db");
+const { signUp } = require("./helpers/users");
 
 beforeEach(resetDatabase);
 afterEach(() => jest.restoreAllMocks());
@@ -34,9 +35,11 @@ test("the real limits, as announced in the RateLimit-Policy header", async () =>
 describe("signups and logins", () => {
   test("share one count; past the limit they get 429 RATE_LIMITED with Retry-After", async () => {
     const app = buildApp({ rateLimits: limitsWith({ auth: 3 }) });
-    expect((await signup(app, "ada@example.com")).status).toBe(201);
-    expect((await signup(app, "bob@example.com")).status).toBe(201);
-    expect((await login(app, "ada@example.com", "password123")).status).toBe(200);
+    expect((await signup(app, "ada@example.com")).status).toBe(202);
+    expect((await signup(app, "bob@example.com")).status).toBe(202);
+    await settle(); // the accounts are created after the response
+    // Not confirmed yet (403), but the attempt counts all the same.
+    expect((await login(app, "ada@example.com", "password123")).status).toBe(403);
 
     const res = await signup(app, "cy@example.com");
 
@@ -49,24 +52,41 @@ describe("signups and logins", () => {
     expect(Number(res.headers["retry-after"])).toBeGreaterThan(14 * 60);
     expect(Number(res.headers["retry-after"])).toBeLessThanOrEqual(15 * 60);
     // The refused signup never ran.
+    await settle();
     await expect(prisma.user.count()).resolves.toBe(2);
   });
 
   test("other routes aren't affected by the signup and login limit", async () => {
+    const ada = await signUp("ada@example.com"); // through the shared app, out of reach of limits
     const app = buildApp({ rateLimits: limitsWith({ auth: 1 }) });
-    const { body } = await signup(app, "ada@example.com").expect(201);
+    expect((await login(app, "ada@example.com", "password123")).status).toBe(200);
     expect((await login(app, "ada@example.com", "password123")).status).toBe(429);
 
-    const res = await request(app).get("/capsules").set("Authorization", `Bearer ${body.token}`);
+    const res = await request(app).get("/capsules").set("Authorization", ada.auth);
 
     expect(res.status).toBe(200);
+  });
+
+  test("confirming an address counts toward the same limit", async () => {
+    const app = buildApp({ rateLimits: limitsWith({ auth: 2 }) });
+    const confirm = () =>
+      request(app)
+        .post("/verify-email")
+        .send({ token: "A".repeat(43) });
+    expect((await confirm()).status).toBe(400);
+    expect((await confirm()).status).toBe(400);
+
+    const res = await confirm();
+
+    expect(res.status).toBe(429);
+    expect(res.body.code).toBe("RATE_LIMITED");
   });
 });
 
 describe("failed logins", () => {
   test("only failures count; once over the limit, even the right password waits", async () => {
+    await signUp("ada@example.com"); // through the shared app, out of reach of limits
     const app = buildApp({ rateLimits: limitsWith({ failedLogins: 2 }) });
-    await signup(app, "ada@example.com").expect(201);
 
     for (let i = 0; i < 4; i++) {
       expect((await login(app, "ada@example.com", "password123")).status).toBe(200);

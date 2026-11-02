@@ -50,6 +50,7 @@ function createFakeMailer() {
 
 // The token in an emailed link such as http://localhost:3000/verify-email#token=...
 function linkToken(email, path) {
+  if (!email) throw new Error(`No email with a /${path} link was sent`);
   const match = new RegExp(`/${path}#token=([A-Za-z0-9_-]+)`).exec(email.text);
   if (!match) throw new Error(`No /${path} link in the email "${email.subject}"`);
   return match[1];

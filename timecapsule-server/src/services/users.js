@@ -14,13 +14,16 @@ const findPublicUserById = (id) =>
 // Prisma's error code for "this value is already in a unique column".
 const UNIQUE_VIOLATION = "P2002";
 
-// Stores a bcrypt hash of the password, never the password itself. Returns null
-// if the email is already registered. The database's unique index on email is
-// what decides, so two signups with one email at the same moment can't both win.
-async function createUser(email, password) {
-  const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+// Passwords are stored as bcrypt hashes, never as typed. bcrypt is slow on
+// purpose (about 60 ms here), so stolen hashes are slow to guess from.
+const hashPassword = (password) => bcrypt.hash(password, BCRYPT_ROUNDS);
+
+// Creates an account, with its email address not confirmed yet. Returns null if
+// the email is already registered. The database's unique index on email is what
+// decides, so two signups with one email at the same moment can't both win.
+async function createUser(email, passwordHash) {
   try {
-    return await prisma.user.create({ data: { email, password: hashedPassword } });
+    return await prisma.user.create({ data: { email, password: passwordHash } });
   } catch (err) {
     // email is the only unique column a signup fills in.
     const emailTaken =
@@ -32,7 +35,7 @@ async function createUser(email, password) {
 
 // A hash of a random password nobody knows, made with the same cost as real
 // ones. Made once, in the background, when the server starts.
-const dummyHash = bcrypt.hash(randomUUID(), BCRYPT_ROUNDS);
+const dummyHash = hashPassword(randomUUID());
 // Avoids an "unhandled rejection" crash if it ever failed; a login that needs it
 // would still see the error.
 dummyHash.catch(() => {});
@@ -52,6 +55,7 @@ const toPublicUser = (user) => ({ id: user.id, email: user.email });
 module.exports = {
   findUserByEmail,
   findPublicUserById,
+  hashPassword,
   createUser,
   passwordMatches,
   toPublicUser,

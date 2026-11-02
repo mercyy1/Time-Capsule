@@ -3,23 +3,37 @@ const cors = require("cors");
 const helmet = require("helmet");
 const { getEnv } = require("./config/env");
 const { createRateLimiters, RATE_LIMITS } = require("./middleware/rateLimits");
-const authRoutes = require("./routes/auth");
+const { createMailer } = require("./email/mailers");
+const { createSender, emailLimits } = require("./email/sender");
+const { createAccounts } = require("./services/accounts");
+const { BackgroundTasks } = require("./background");
+const { createAuthRouter } = require("./routes/auth");
 const capsuleRoutes = require("./routes/capsules");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 
 // Builds the Express app without starting it, so tests can send it requests
 // directly. Tests can also replace settings that normally come from the
-// environment:
+// environment, and the parts that reach outside the server:
 //   clientOrigins  the sites whose pages may call the API (CLIENT_ORIGIN)
 //   trustProxy     how many proxies are in front of the server (TRUST_PROXY)
 //   rateLimits     the limits, shaped like RATE_LIMITS
+//   mailer         sends emails (see email/mailers.js)
+//   emailLimits    how many emails may be sent (see email/sender.js)
+//   appUrl         the web client's address, for links in emails (APP_URL)
+//   tasks          runs work after responding (see background.js)
 function createApp({
   clientOrigins = getEnv().CLIENT_ORIGIN,
   trustProxy = getEnv().TRUST_PROXY,
   rateLimits = RATE_LIMITS,
+  mailer = createMailer(getEnv()),
+  emailLimits: limits = emailLimits(getEnv().EMAIL_DAILY_LIMIT),
+  appUrl = getEnv().APP_URL,
+  tasks = new BackgroundTasks(),
 } = {}) {
   const app = express();
-  const limits = createRateLimiters(rateLimits);
+  const limiters = createRateLimiters(rateLimits);
+  const sender = createSender({ mailer, limits });
+  const accounts = createAccounts({ sender, appUrl });
 
   // req.ip, which rate limits count by: behind trustProxy proxies it is taken from
   // X-Forwarded-For, otherwise it is the address that connected. (false rather than
@@ -37,7 +51,7 @@ function createApp({
   app.use(cors({ origin: clientOrigins }));
   // After CORS, so the browser's preflight requests aren't counted; before the body
   // is parsed, so a flood is turned away cheaply.
-  app.use(limits.general);
+  app.use(limiters.general);
   // The largest valid request, a capsule whose 10,000-character message is all
   // 4-byte characters such as emoji, is about 41 kB; anything over 64 kB is refused
   // before it is read into memory (Express's default limit is 100 kB).
@@ -46,9 +60,9 @@ function createApp({
   // Health check
   app.get("/", (req, res) => res.send("Time Capsule API"));
 
-  app.post("/signup", limits.auth);
-  app.post("/login", limits.auth, limits.failedLogins);
-  app.use(authRoutes); // POST /signup, POST /login
+  app.post(["/signup", "/verify-email"], limiters.auth);
+  app.post("/login", limiters.auth, limiters.failedLogins);
+  app.use(createAuthRouter({ accounts, sender, tasks })); // signup, verify-email, login
   app.use("/capsules", capsuleRoutes);
 
   app.use(notFound);
