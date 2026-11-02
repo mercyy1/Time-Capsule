@@ -1,0 +1,9 @@
+# Store text files with LF line endings in the repo and the working tree,
+# so Windows and Linux/macOS (CI, hosting) see identical files.
+* text=auto eol=lf
+
+# Binary assets: never touch their bytes.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
