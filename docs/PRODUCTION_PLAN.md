@@ -3,6 +3,8 @@
 > Written 2026-11-01 at the end of Phase 0 (recon). Line numbers refer to commit `3b97d71` (current `main`).
 > Prices and free-tier limits were read from the providers' own pages on that date (sources in Appendix B) —
 > re-check them before relying on them.
+>
+> **Progress:** Phase 1 done on 2026-11-01 (branch `phase-1-foundations`; notes under Phase 1).
 
 ## 1. Summary
 
@@ -205,7 +207,7 @@ Goal: everything in one repo, reproducible locally, protected by tests — with 
    invalid one and exits — including `JWT_SECRET` ≥ 32 characters (H1). Your local `.env` will need a new secret;
    I'll ask before touching it.
 6. Make the app importable without starting a server, then write **characterization tests** — tests that pin down
-   today's behaviour so the refactor can't change it — with Vitest + Supertest against the real test database:
+   today's behaviour so the refactor can't change it — with Jest + Supertest against the real test database:
    signup, login, create, list (message is `null` while locked), open by slug (locked vs unlocked × private vs
    public × owner vs stranger), public view, delete (owner vs non-owner). Unlocked capsules are inserted directly
    through Prisma, since the API rejects past dates. (H5)
@@ -216,6 +218,22 @@ Goal: everything in one repo, reproducible locally, protected by tests — with 
 
 **Done when:** a fresh clone + `docker compose up -d` + `npm ci` + `npm test` passes; the client builds with Vite;
 no route behaves differently.
+
+**Status: done.** What changed from the plan while doing it:
+- Tests use **Jest** instead of Vitest. The server is CommonJS, which Jest runs as-is; Vitest is built around ES
+  modules (its `vi.mock` doesn't apply to `require()`).
+- A fresh `npm ci` showed that Prisma's own postinstall never generates the client: its package entry points at a
+  file that isn't published (6.10.1 and 6.19.3). The server now runs `prisma generate` in its own `postinstall`.
+  npm 11 also warns about dependency install scripts until they're listed in `allowScripts`; Prisma and bcrypt
+  are approved, `@parcel/watcher` (only builds from source on request) is denied.
+- Extra client fixes ESLint asked for, none visible to users: `api.jsx` → `api.js`; `AuthContext.jsx` split into
+  `AuthContext.js` (context + `useAuth`) and `AuthProvider.jsx` (better hot reload); the dashboard fetch moved into
+  its effect; an unused variable removed.
+- `npm audit` after the bumps:
+  - Server production dependencies: one advisory left (`deepmerge-ts` inside Prisma 6's CLI config loader). Only
+    Prisma 7 fixes it, and Prisma 7 stays deferred; the loader only reads our own config file.
+  - Server dev tools (ESLint, Jest, nodemon): moderate advisories in `glob`/`minimatch` with no fixed release yet.
+  - Client: 6 moderate, all inside ESLint.
 
 ### Phase 2 — Security hardening (`phase-2-security`)
 1. zod schemas on every route: emails trimmed, lowercased and format-checked (≤ 254 chars); passwords 8–72 bytes
@@ -257,7 +275,7 @@ no route behaves differently.
 3. Time zones end to end: the form shows which time zone it's using and warns about daylight-saving gaps (L5);
    Playwright runs the flow in several time zones.
 4. Responsive and keyboard accessible: real links and buttons for cards, labelled inputs, visible focus (M14, L8).
-   Tailwind 4 upgrade alongside the redesign. (The `frontend-design` skill isn't installed in this environment.)
+   Tailwind 4 upgrade alongside the redesign, using the `frontend-design` skill (now available).
 5. Verify-email and reset-password screens for Phase 3's flows.
 6. Playwright end-to-end test of the main flow, including a capsule seeded with a past unlock date to check the
    unlocked view.
