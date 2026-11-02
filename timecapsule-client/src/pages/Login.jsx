@@ -1,68 +1,102 @@
-import { useForm } from "react-hook-form";
-import { useAuth } from "../context/AuthContext";
-import api from "../api";
-import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import api from "../api";
+import { showApiError } from "../apiErrors";
+import AuthPage from "../components/AuthPage";
+import Field from "../components/Field";
+import Notice from "../components/Notice";
+import { useAuth } from "../context/AuthContext";
+import { emailRules } from "../validation";
 
 export default function Login() {
   const location = useLocation();
-  // Filled in when coming from the "email confirmed" page.
-  const { register, handleSubmit } = useForm({
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    // Filled in when coming from the "email confirmed" page.
     defaultValues: { email: location.state?.email ?? "" },
   });
   const { login, sessionEnded } = useAuth();
   const navigate = useNavigate();
-  const [error, setError] = useState(null);
+  // What went wrong with the last try: { tone, text }.
+  const [problem, setProblem] = useState(null);
   // Where the user was going when they were sent here (see ProtectedRoute).
   const from = location.state?.from;
 
   const onSubmit = async (data) => {
-    setError(null);
+    setProblem(null);
     try {
       const res = await api.post("/login", data);
       login(res.data.user, res.data.token);
       navigate(from ? `${from.pathname}${from.search}` : "/", { replace: true });
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed");
+      // An unconfirmed address isn't a mistake: a new link is on its way.
+      const unconfirmed = err.response?.data?.code === "EMAIL_NOT_VERIFIED";
+      const text = showApiError(err, setError, ["email", "password"], "Couldn't log you in.");
+      if (text) setProblem({ tone: unconfirmed ? "info" : "error", text });
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-sm shadow-sm">
-      <h2 className="text-2xl mb-6 font-semibold">Log In</h2>
-      {sessionEnded && !error && <p className="mb-4 text-gray-700">{sessionEnded}</p>}
-      {error && <p className="mb-4 text-red-600">{error}</p>}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <input
-          {...register("email", { required: true })}
-          type="email"
-          placeholder="Email"
-          className="input"
-          required
-        />
-        <input
-          {...register("password", { required: true })}
-          type="password"
-          placeholder="Password"
-          autoComplete="current-password"
-          className="input"
-          required
-        />
-        <button type="submit" className="btn btn-primary w-full">
-          Log In
+    <AuthPage
+      title="Log in"
+      links={
+        <>
+          <Link to="/forgot-password" className="link">
+            Forgot your password?
+          </Link>
+          <p>
+            New here?{" "}
+            <Link to="/signup" className="link">
+              Create an account
+            </Link>
+          </p>
+        </>
+      }
+    >
+      {problem ? (
+        <Notice tone={problem.tone} className="mb-6">
+          {problem.text}
+        </Notice>
+      ) : (
+        sessionEnded && (
+          <Notice className="mb-6">
+            {sessionEnded}
+            {from && " After that, you'll go back to the page you were on."}
+          </Notice>
+        )
+      )}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+        <Field label="Email" error={errors.email?.message}>
+          {(props) => (
+            <input
+              {...props}
+              {...register("email", emailRules)}
+              type="email"
+              autoComplete="email"
+              className="field-input"
+            />
+          )}
+        </Field>
+        <Field label="Password" error={errors.password?.message}>
+          {(props) => (
+            <input
+              {...props}
+              {...register("password", { required: "Enter your password" })}
+              type="password"
+              autoComplete="current-password"
+              className="field-input"
+            />
+          )}
+        </Field>
+        <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Logging in…" : "Log in"}
         </button>
       </form>
-      <p className="mt-4 text-center">
-        <Link to="/forgot-password" className="text-blue-600 hover:underline">
-          Forgot your password?
-        </Link>
-      </p>
-      <p className="mt-2 text-center">
-        Don't have an account?{" "}
-        <Link to="/signup" className="text-blue-600 hover:underline">
-          Sign up
-        </Link>
-      </p>
-    </div>
+    </AuthPage>
   );
 }

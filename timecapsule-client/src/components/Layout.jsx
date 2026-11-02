@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+// The current page's link (NavLink marks it aria-current="page") is plain text.
+const navLink = ({ isActive }) => (isActive ? "font-semibold text-ink" : "link");
 
 // Every page: the header (the wordmark, and what you can do from anywhere) and
 // the page itself.
@@ -43,10 +46,10 @@ export default function Layout({ children }) {
           </Link>
           {user ? (
             <nav aria-label="Account" className="flex items-center gap-1 sm:gap-3">
-              <Link to="/create" className="btn btn-primary">
+              <NavLink to="/create" className="btn btn-primary">
                 <span className="sm:hidden">Write</span>
                 <span className="hidden sm:inline">Write a capsule</span>
-              </Link>
+              </NavLink>
               <button
                 type="button"
                 className="btn text-slate hover:text-ink"
@@ -57,12 +60,12 @@ export default function Layout({ children }) {
             </nav>
           ) : (
             <nav aria-label="Account" className="flex items-center gap-4 text-sm">
-              <Link to="/login" className="link">
+              <NavLink to="/login" className={navLink}>
                 Log in
-              </Link>
-              <Link to="/signup" className="link">
+              </NavLink>
+              <NavLink to="/signup" className={navLink}>
                 Create an account
-              </Link>
+              </NavLink>
             </nav>
           )}
         </div>

@@ -171,6 +171,25 @@
     box-shadow: 0 1px 2px color-mix(in oklab, var(--color-ink) 8%, transparent);
   }
 
+  /* A strip of airmail border along the top of a sheet: the account pages. */
+  .airmail-top {
+    position: relative;
+  }
+  .airmail-top::before {
+    content: "";
+    position: absolute;
+    inset: -1px -1px auto;
+    height: 6px;
+    border-radius: 3px 3px 0 0;
+    background: repeating-linear-gradient(
+      135deg,
+      var(--color-airmail-red) 0 8px,
+      transparent 8px 12px,
+      var(--color-airmail-blue) 12px 20px,
+      transparent 20px 24px
+    );
+  }
+
   /* A sealed capsule: an airmail envelope, its border striped red and blue. */
   .envelope {
     --edge: 8px;
