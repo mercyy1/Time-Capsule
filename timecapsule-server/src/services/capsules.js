@@ -7,6 +7,13 @@ const isLocked = (capsule, now = new Date()) => now < capsule.unlockDate;
 // All a locked capsule reveals: that it is locked, and when it opens.
 const toLockedView = (capsule) => ({ status: "locked", unlocksAt: capsule.unlockDate });
 
+// A locked capsule as shown to its owner: also which capsule it is (for the page
+// title and the Delete button), but still never the message.
+const toOwnerLockedView = (capsule) => ({
+  ...toLockedView(capsule),
+  capsule: { id: capsule.id, title: capsule.title, unlockDate: capsule.unlockDate },
+});
+
 // An unlocked capsule as shown to a signed-in user (its owner, or anyone if public).
 const toUnlockedView = (capsule) => ({
   status: "unlocked",
@@ -65,16 +72,22 @@ function createCapsule({ ownerId, title, message, unlockDate, isPublic }) {
 
 const findCapsuleBySlug = (slug) => prisma.capsule.findUnique({ where: { slug } });
 const findCapsuleById = (id) => prisma.capsule.findUnique({ where: { id } });
-const deleteCapsule = (id) => prisma.capsule.delete({ where: { id } });
+// Deletes the capsule only if `ownerId` owns it, in one query. Returns whether a
+// row was deleted, so a capsule deleted twice at once can't cause an error.
+async function deleteOwnedCapsule(id, ownerId) {
+  const { count } = await prisma.capsule.deleteMany({ where: { id, ownerId } });
+  return count > 0;
+}
 
 module.exports = {
   isLocked,
   toLockedView,
+  toOwnerLockedView,
   toUnlockedView,
   toPublicView,
   listCapsulesForOwner,
   createCapsule,
   findCapsuleBySlug,
   findCapsuleById,
-  deleteCapsule,
+  deleteOwnedCapsule,
 };

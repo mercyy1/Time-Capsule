@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: timecapsule
       POSTGRES_DB: timecapsule
     ports:
-      # Bound to localhost only, so the database isn't reachable from your network.
+      # Bound to 127.0.0.1 only, so the database isn't reachable from your network.
       - "127.0.0.1:5432:5432"
     volumes:
       # Postgres 18+ keeps its data under /var/lib/postgresql (not .../data).

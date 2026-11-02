@@ -4,7 +4,8 @@
 > Prices and free-tier limits were read from the providers' own pages on that date (sources in Appendix B) —
 > re-check them before relying on them.
 >
-> **Progress:** Phase 1 done on 2026-11-01 (branch `phase-1-foundations`; notes under Phase 1).
+> **Progress:** Phase 1 done on 2026-11-01 (branch `phase-1-foundations`; notes under Phase 1). Phase 2 done on
+> 2026-11-01 (branch `phase-2-security`; notes under Phase 2).
 
 ## 1. Summary
 
@@ -253,6 +254,44 @@ no route behaves differently.
    anything changes. (M5)
 8. A test for every fix; `npm audit` triage.
 
+**Status: done.** Decisions and what changed from the plan while doing it:
+- **Tokens stay in `localStorage`** (your decision on M5), with the one-day lifetime. What protects them is the
+  client never running other people's scripts: React escapes everything it renders, the client loads no third-party
+  scripts, and Phase 5 adds a Content-Security-Policy to the client site. Logging out still can't revoke a token
+  before it expires; Phase 3's `tokenVersion` lets a password reset do that.
+- **Status codes**, beyond the plan: `201 Created` for signup and capsule creation (the client accepts any 2xx).
+  Deleting someone else's *public* capsule stays `403`: they can already see it, so there's nothing to hide; their
+  *private* ones are `404`, exactly like a missing capsule.
+- **Body limit 64 kB, not 16 kB**: a 10,000-character message can take 40 kB in UTF-8 (emoji are 4 bytes each), so
+  16 kB would refuse valid capsules.
+- **Index `(ownerId, unlockDate)` instead of `(ownerId)`**: the capsule list filters by owner and sorts by unlock
+  date, and one index serves both (it also covers lookups by owner alone).
+- **Rate limits** (per IP address; IPv6 per /56 block): 1,000 requests per 5 minutes overall, 30 signups and logins
+  per 15 minutes, 10 failed logins per 15 minutes. People sharing one network (a campus, an office) share a count,
+  hence the generous numbers.
+- **`TRUST_PROXY`** (default 0) says how many proxies sit in front of the API. Render's value is checked on the
+  deployed app in Phase 5: too low and every visitor shares one count, too high and anyone can dodge the limits
+  with a forged `X-Forwarded-For`.
+- **Two race conditions** found by sending requests at the same moment: simultaneous signups with one email
+  crashed with 500 (now the database's unique index decides: one 201, the rest 409), and so did deleting a capsule
+  twice at once (now 404).
+- **A token outlived its account**: after a user was deleted, their token still worked, and creating a capsule
+  with it crashed with 500. The token check now also looks the account up (one primary-key query per request) and
+  answers 401 if it's gone; Phase 3's `tokenVersion` check will reuse that lookup.
+- **The local database is reached at `127.0.0.1`**, not `localhost`: on Windows each new connection to
+  `localhost` waited ~2 seconds (IPv6 first), which slowed the tests and hid those races.
+- **M6, API part:** the owner of a locked capsule now also gets its id, title and unlock date; the client starts
+  using them in Phase 4.
+- **Left for later, on purpose:** per-IP limits don't stop a slow attack spread over many addresses, and limits
+  per account let anyone lock a victim out, so account-level protection waits for Phase 3's emails. Signup still
+  answers 409 for a registered email until Phase 3's verification flow (M2).
+- `npm audit`:
+  - Server production dependencies: the same single advisory as in Phase 1 (`deepmerge-ts`, rated high, inside
+    Prisma 6's CLI config loader). Only Prisma 7 fixes it; the loader reads only our own config, never request
+    data. The new dependencies (helmet 8.3, express-rate-limit 8.7.2) have none.
+  - Server dev tools: moderate `glob`/`minimatch` advisories in Jest, ESLint and nodemon, no fixed release yet.
+  - Client: none in production dependencies; 6 moderate, all inside ESLint.
+
 ### Phase 3 — Unlock notifications + account emails (`phase-3-notifications`)
 1. **You decide** what `Capsule.email` means (an extra recipient, or remove it) and how the job is scheduled:
    a Render cron job (paid, $1/month minimum), a GitHub Actions schedule (free, but runs can be delayed or dropped
@@ -265,6 +304,9 @@ no route behaves differently.
 3. Email verification at signup and password reset: random tokens stored only as hashes, single-use, short-lived; a
    reset invalidates existing JWTs (`tokenVersion`); signup stops revealing whether an email is registered (M2).
 4. Tests with the email sender replaced by a fake that's passed in (no monkey-patching of modules).
+5. Rate limits that match the email quota: every signup and reset request sends an email, and Resend allows 100 a
+   day, so cap them per address *and* per day, or a bot can use up the quota and block unlock emails. Revisit
+   account-level login protection (for example, emailing the owner after repeated failures).
 
 ### Phase 4 — Frontend (`phase-4-frontend`)
 1. Every screen handles loading, empty, error and expired-session states; a 401 logs you out with a message instead
@@ -286,6 +328,8 @@ no route behaves differently.
    step is available on the free plan; otherwise in the build step); Neon's pooled connection URL for the app and
    direct URL for migrations; Cloudflare Pages build with a single-page-app fallback; Node 24 everywhere.
 3. `/health` that also checks the database; graceful shutdown on SIGTERM. (M13)
+   Set `TRUST_PROXY` for Render and check it on the live app (the address the API sees must be the caller's), and
+   give the client site a Content-Security-Policy (Cloudflare Pages `_headers`).
 4. README rewritten for production: what it does, live link, Mermaid architecture diagram, local setup, deploy
    steps, environment variables.
 5. Account set-up one step at a time, waiting for you at each: domain (the Student Pack includes a free one for a

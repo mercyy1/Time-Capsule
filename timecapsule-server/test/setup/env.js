@@ -9,4 +9,5 @@ Object.assign(process.env, {
   DATABASE_URL: testDatabaseUrl,
   JWT_SECRET: "test-only-secret-that-is-at-least-32-characters",
   CLIENT_ORIGIN: "http://localhost:3000",
+  TRUST_PROXY: "0",
 });
