@@ -8,6 +8,7 @@ const mailers = require("../../src/email/mailers");
 const emailSender = require("../../src/email/sender");
 const unlockEmails = require("../../src/jobs/unlockEmails");
 const status = require("../../src/routes/status");
+const shutdown = require("../../src/shutdown");
 const errorHandling = require("../../src/middleware/errorHandler");
 const { createFakeMailer } = require("./mailer");
 
@@ -49,5 +50,6 @@ module.exports = {
   emailSender,
   unlockEmails,
   status,
+  shutdown,
   errorHandling,
 };
