@@ -29,8 +29,11 @@ function seedCapsule({
   isPublic = false,
   title = "Seeded",
   message = "seeded message",
+  recipientEmail = null,
 }) {
-  return prisma.capsule.create({ data: { ownerId, unlockDate, isPublic, title, message } });
+  return prisma.capsule.create({
+    data: { ownerId, unlockDate, isPublic, title, message, recipientEmail },
+  });
 }
 
 module.exports = { daysFromNow, resetDatabase, seedCapsule };

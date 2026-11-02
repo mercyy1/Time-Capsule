@@ -18,15 +18,18 @@ const text = (label) => ({
 
 const body = (shape) => z.object(shape, { error: "The request body must be a JSON object" });
 
-// Emails are compared in lowercase, so Ada@Example.com and ada@example.com are
-// the same account.
-const email = z
-  .string(text("Email"))
-  .trim()
-  .toLowerCase()
-  .min(1, { error: "Email is required" })
-  .max(EMAIL_MAX_LENGTH, { error: `Email must be at most ${EMAIL_MAX_LENGTH} characters` })
-  .pipe(z.email({ error: "Enter a valid email address" }));
+// An email address, in lowercase: Ada@Example.com and ada@example.com are the
+// same account (and the same inbox).
+const emailAddress = (label, invalidMessage) =>
+  z
+    .string(text(label))
+    .trim()
+    .toLowerCase()
+    .min(1, { error: `${label} is required` })
+    .max(EMAIL_MAX_LENGTH, { error: `${label} must be at most ${EMAIL_MAX_LENGTH} characters` })
+    .pipe(z.email({ error: invalidMessage }));
+
+const email = emailAddress("Email", "Enter a valid email address");
 
 // Passwords are used exactly as typed: never trimmed or lowercased.
 const newPassword = z
@@ -87,14 +90,20 @@ const unlockDate = z.iso
     error: `Unlock date must be at most ${MAX_YEARS_AHEAD} years from now`,
   });
 
-// The client also sends `email`; it is dropped (with any other unknown field)
-// until Phase 3 decides what it means.
+// Someone to email the capsule to when it opens, if anyone: an empty field (or
+// none, or null) means nobody.
+const recipientEmail = z.preprocess(
+  (value) => (value == null || (typeof value === "string" && value.trim() === "") ? null : value),
+  emailAddress("Recipient email", "Enter a valid email address for the recipient").nullable(),
+);
+
 const newCapsuleBody = body({
   title: trimmedText("Title", TITLE_MAX_LENGTH),
   message: trimmedText("Message", MESSAGE_MAX_LENGTH),
   unlockDate,
   // A real boolean: the string "false" is rejected rather than read as true.
   isPublic: z.boolean({ error: "isPublic must be true or false" }).default(false),
+  recipientEmail,
 });
 
 const MAX_ID = 2_147_483_647; // the largest value of a PostgreSQL integer column

@@ -14,7 +14,8 @@ const toOwnerLockedView = (capsule) => ({
   capsule: { id: capsule.id, title: capsule.title, unlockDate: capsule.unlockDate },
 });
 
-// An unlocked capsule as shown to a signed-in user (its owner, or anyone if public).
+// An unlocked capsule as shown to a signed-in user (its owner, or anyone if
+// public), so never the recipient's email: that is for the owner's list only.
 const toUnlockedView = (capsule) => ({
   status: "unlocked",
   capsule: {
@@ -26,7 +27,7 @@ const toUnlockedView = (capsule) => ({
 });
 
 // An unlocked capsule as shown on the public share page: display fields only,
-// never the owner id, contact email or internal flags.
+// never the owner id, the recipient's email or internal flags.
 const toPublicView = (capsule) => ({
   status: "unlocked",
   capsule: {
@@ -44,6 +45,7 @@ const OWNER_FIELDS = {
   unlockDate: true,
   isPublic: true,
   slug: true,
+  recipientEmail: true,
 };
 
 // The owner's capsules, soonest unlock first, with locked messages replaced by null.
@@ -59,13 +61,14 @@ async function listCapsulesForOwner(ownerId, now = new Date()) {
     unlockDate: c.unlockDate,
     isPublic: c.isPublic,
     slug: c.slug,
+    recipientEmail: c.recipientEmail,
     message: isLocked(c, now) ? null : c.message,
   }));
 }
 
-function createCapsule({ ownerId, title, message, unlockDate, isPublic }) {
+function createCapsule({ ownerId, title, message, unlockDate, isPublic, recipientEmail }) {
   return prisma.capsule.create({
-    data: { title, message, unlockDate, isPublic, ownerId },
+    data: { title, message, unlockDate, isPublic, recipientEmail, ownerId },
     select: OWNER_FIELDS,
   });
 }
