@@ -17,10 +17,9 @@ const invalidCredentials = () =>
 router.post("/signup", async (req, res) => {
   const { email, password } = parse(signupBody, req.body);
 
-  const existingUser = await findUserByEmail(email);
-  if (existingUser) throw new HttpError(400, "EMAIL_TAKEN", "Email already exists");
-
   const user = await createUser(email, password);
+  if (!user) throw new HttpError(409, "EMAIL_TAKEN", "An account with this email already exists");
+
   res.json({ token: generateAccessToken(user), user: toPublicUser(user) });
 });
 

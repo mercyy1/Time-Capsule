@@ -77,6 +77,7 @@ describe("POST /signup", () => {
     const again = await request(app)
       .post("/signup")
       .send({ email: "ADA@example.com", password: "password123" });
+    expect(again.status).toBe(409);
     expect(again.body.code).toBe("EMAIL_TAKEN");
     await expect(prisma.user.count()).resolves.toBe(1);
   });
@@ -142,15 +143,29 @@ describe("POST /signup", () => {
     });
   });
 
-  test("rejects an email that is already registered", async () => {
+  test("409 (was 400) for an email that is already registered", async () => {
     await signUp("ada@example.com");
 
     const res = await request(app)
       .post("/signup")
       .send({ email: "ada@example.com", password: "another-password" });
 
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Email already exists", code: "EMAIL_TAKEN" });
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "An account with this email already exists",
+      code: "EMAIL_TAKEN",
+    });
+    await expect(prisma.user.count()).resolves.toBe(1);
+  });
+
+  test("six signups with one email at the same moment: one account, five 409s (was 500s)", async () => {
+    const signup = () =>
+      request(app).post("/signup").send({ email: "ada@example.com", password: "password123" });
+
+    const results = await Promise.all(Array.from({ length: 6 }, signup));
+
+    const statuses = results.map((res) => res.status).sort();
+    expect(statuses).toEqual([200, 409, 409, 409, 409, 409]);
     await expect(prisma.user.count()).resolves.toBe(1);
   });
 });
