@@ -4,6 +4,7 @@ const { createApp } = require("../../src/app");
 const { prisma } = require("../../src/db");
 const { RATE_LIMITS } = require("../../src/middleware/rateLimits");
 const mailers = require("../../src/email/mailers");
+const emailSender = require("../../src/email/sender");
 
 // The real limits, but too high for any test to reach: each test file shares one
 // app, and its tests sign up far more often than the real limits allow.
@@ -15,4 +16,4 @@ const UNREACHABLE_LIMITS = Object.fromEntries(
 // Rate limits stay out of reach unless a test passes its own.
 const buildApp = (options = {}) => createApp({ rateLimits: UNREACHABLE_LIMITS, ...options });
 
-module.exports = { app: buildApp(), buildApp, prisma, RATE_LIMITS, mailers };
+module.exports = { app: buildApp(), buildApp, prisma, RATE_LIMITS, mailers, emailSender };
