@@ -1,6 +1,25 @@
 import { createCapsule, expect, logIn, test } from "../support/fixtures.js";
+import settings from "../support/settings.cjs";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+// The headers Cloudflare Pages sends (the build's _headers file), which vite
+// preview sends too: so every test runs under the deployed policy, and the
+// fixtures' check for Content-Security-Policy violations means something.
+test("pages come with the site's security headers", async ({ page }) => {
+  const res = await page.goto("/login");
+  const headers = res.headers();
+
+  const policy = headers["content-security-policy"];
+  expect(policy).toContain("default-src 'self'");
+  expect(policy).toContain("script-src 'self' https://challenges.cloudflare.com");
+  expect(policy).toContain("frame-src https://challenges.cloudflare.com");
+  expect(policy).toContain(`connect-src 'self' ${settings.API_URL}`);
+  expect(policy).toContain("frame-ancestors 'none'");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["x-frame-options"]).toBe("DENY");
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+});
 
 // Long words (a title without spaces, a long address) must wrap rather than make
 // the page wider than the screen.

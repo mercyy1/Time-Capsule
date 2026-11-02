@@ -62,10 +62,18 @@ export async function createCapsule(request, session, capsule) {
 
 export const test = base.extend({
   // Every test's pages: Cloudflare's security check replaced by the fake
-  // (turnstile.js).
+  // (turnstile.js), and the test fails if a page broke the site's
+  // Content-Security-Policy (vite preview sends the deployed one).
   context: async ({ context }, use) => {
     await useFakeTurnstile(context);
+    const violations = [];
+    context.on("console", (message) => {
+      if (message.type() === "error" && message.text().includes("Content Security Policy")) {
+        violations.push(message.text());
+      }
+    });
     await use(context);
+    expect(violations, "Content-Security-Policy violations").toEqual([]);
   },
 
   // A confirmed account, new for each test.
