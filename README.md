@@ -16,9 +16,7 @@
 | Backend | Node.js + Express 5 |
 | Database | PostgreSQL + Prisma ORM |
 | Auth | bcrypt password hashing + JWT bearer tokens |
-| Frontend | React + Tailwind (`timecapsule-client`, see note below) |
-
-> **Note:** `timecapsule-client` is currently recorded as an empty git pointer rather than real files, so the frontend code isn't in this repo yet. Everything below covers the API in `timecapsule-server/`.
+| Frontend | React 19 + Vite + Tailwind CSS (`timecapsule-client/`) |
 
 ## API
 
@@ -34,18 +32,40 @@
 
 For authenticated routes, send `Authorization: Bearer <token>`. A capsule that hasn't unlocked yet responds with `{ "status": "locked", "unlocksAt": "..." }`.
 
-## Running the server
+## Running it locally
 
-**You'll need:** Node.js 18+ and PostgreSQL.
+**You'll need:** Node.js 24 LTS and Docker (for the PostgreSQL database).
 
 ```bash
 git clone https://github.com/mercyy1/Time-Capsule.git
-cd Time-Capsule/timecapsule-server
-npm install
-cp .env.example .env          # set DATABASE_URL and JWT_SECRET
-npx prisma migrate dev        # creates the tables and generates the Prisma client
-npm run dev                   # http://localhost:5000
+cd Time-Capsule
+docker compose up -d          # PostgreSQL on localhost:5432 (dev and test databases)
+
+cd timecapsule-server
+npm ci                        # also generates the Prisma client
+cp .env.example .env          # then set JWT_SECRET (the file says how to generate one)
+npm run db:deploy             # creates the tables
+npm run dev                   # API on http://localhost:5000
+
+# in a second terminal, from the repository root
+cd timecapsule-client
+npm ci
+cp .env.example .env          # VITE_API_URL=http://localhost:5000
+npm run dev                   # app on http://localhost:3000
 ```
+
+The server checks its environment variables at startup and exits with a list of anything missing or invalid.
+
+## Tests and code style
+
+```bash
+cd timecapsule-server
+npm test                      # integration tests against the timecapsule_test database
+npm run lint                  # ESLint (also in timecapsule-client)
+npm run format                # Prettier (also in timecapsule-client)
+```
+
+The tests empty the test database before each test and refuse to run against a database whose name doesn't end in `_test`.
 
 ## Data model
 
