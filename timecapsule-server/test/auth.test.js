@@ -81,7 +81,10 @@ describe("POST /login", () => {
       .send({ email: "ada@example.com", password: "password123" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ token: expect.any(String), user: { id: user.id, email: "ada@example.com" } });
+    expect(res.body).toEqual({
+      token: expect.any(String),
+      user: { id: user.id, email: "ada@example.com" },
+    });
     expect(verify(res.body.token)).toMatchObject({ id: user.id, email: "ada@example.com" });
   });
 
@@ -150,7 +153,10 @@ describe("token check on protected routes", () => {
 
   test("403 for a token signed with a different secret", async () => {
     const { user } = await signUp();
-    const forged = jwt.sign({ id: user.id, email: user.email }, "some-other-secret-at-least-32-chars-long");
+    const forged = jwt.sign(
+      { id: user.id, email: user.email },
+      "some-other-secret-at-least-32-chars-long",
+    );
 
     const res = await request(app).get("/capsules").set("Authorization", `Bearer ${forged}`);
 

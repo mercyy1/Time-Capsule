@@ -51,9 +51,7 @@ export default function ViewCapsule() {
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-      setCountdown(
-        `${hours > 0 ? hours + "h " : ""}${minutes}m ${seconds}s`
-      );
+      setCountdown(`${hours > 0 ? hours + "h " : ""}${minutes}m ${seconds}s`);
     };
 
     updateCountdown();

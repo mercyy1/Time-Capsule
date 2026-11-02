@@ -6,7 +6,11 @@ const { testDatabaseUrl, assertTestDatabase } = require("./testDatabase");
 
 module.exports = function globalSetup() {
   assertTestDatabase(testDatabaseUrl);
-  const prismaCli = path.join(path.dirname(require.resolve("prisma/package.json")), "build", "index.js");
+  const prismaCli = path.join(
+    path.dirname(require.resolve("prisma/package.json")),
+    "build",
+    "index.js",
+  );
   try {
     execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], {
       cwd: path.join(__dirname, "..", ".."),

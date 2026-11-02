@@ -19,7 +19,13 @@ async function resetDatabase() {
 
 // Inserts a capsule straight into the database. The API only accepts future
 // unlock dates, so this is how tests get capsules that are already unlocked.
-function seedCapsule({ ownerId, unlockDate, isPublic = false, title = "Seeded", message = "seeded message" }) {
+function seedCapsule({
+  ownerId,
+  unlockDate,
+  isPublic = false,
+  title = "Seeded",
+  message = "seeded message",
+}) {
   return prisma.capsule.create({ data: { ownerId, unlockDate, isPublic, title, message } });
 }
 

@@ -8,8 +8,6 @@ import ViewCapsule from "./pages/ViewCapsule";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicCapsule from "./pages/PublicCapsule";
 
-
-
 export default function App() {
   return (
     <AuthProvider>
@@ -31,8 +29,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-       <Route path="/capsule/:slug" element={<ViewCapsule />} />
-
+          <Route path="/capsule/:slug" element={<ViewCapsule />} />
 
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />

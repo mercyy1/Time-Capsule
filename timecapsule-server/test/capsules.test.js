@@ -13,7 +13,12 @@ async function createCapsule(owner, fields = {}) {
   const res = await request(app)
     .post("/capsules")
     .set("Authorization", owner.auth)
-    .send({ title: "Hello future", message: "the secret", unlockDate: daysFromNow(30).toISOString(), ...fields })
+    .send({
+      title: "Hello future",
+      message: "the secret",
+      unlockDate: daysFromNow(30).toISOString(),
+      ...fields,
+    })
     .expect(200);
   return res.body;
 }
@@ -128,7 +133,11 @@ describe("GET /capsules", () => {
   test("returns message: null while a capsule is locked and the message once it unlocks", async () => {
     const ada = await signUp();
     const locked = await createCapsule(ada, { message: "not yet" });
-    const unlocked = await seedCapsule({ ownerId: ada.user.id, unlockDate: daysFromNow(-1), message: "hello again" });
+    const unlocked = await seedCapsule({
+      ownerId: ada.user.id,
+      unlockDate: daysFromNow(-1),
+      message: "hello again",
+    });
 
     const res = await request(app).get("/capsules").set("Authorization", ada.auth);
 
@@ -181,7 +190,11 @@ describe("GET /capsules/slug/:slug", () => {
 
   test("owner, unlocked: the capsule with its message", async () => {
     const ada = await signUp();
-    const capsule = await seedCapsule({ ownerId: ada.user.id, unlockDate: daysFromNow(-1), message: "hello again" });
+    const capsule = await seedCapsule({
+      ownerId: ada.user.id,
+      unlockDate: daysFromNow(-1),
+      message: "hello again",
+    });
 
     const res = await open(capsule.slug, ada);
 
@@ -303,7 +316,9 @@ describe("GET /capsules/public/:slug", () => {
     const ada = await signUp();
     const capsule = await seedCapsule({ ownerId: ada.user.id, unlockDate: daysFromNow(-1) });
 
-    const res = await request(app).get(`/capsules/public/${capsule.slug}`).set("Authorization", ada.auth);
+    const res = await request(app)
+      .get(`/capsules/public/${capsule.slug}`)
+      .set("Authorization", ada.auth);
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: "Capsule not found or not public" });

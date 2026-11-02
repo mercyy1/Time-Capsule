@@ -14,8 +14,8 @@ The API (`../timecapsule-server`) must be running at `VITE_API_URL`.
 
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Dev server with hot reload on port 3000 |
-| `npm run build` | Production build into `dist/` (needs `VITE_API_URL`) |
-| `npm run preview` | Serve the production build locally on port 3000 |
+| Command           | What it does                                         |
+| ----------------- | ---------------------------------------------------- |
+| `npm run dev`     | Dev server with hot reload on port 3000              |
+| `npm run build`   | Production build into `dist/` (needs `VITE_API_URL`) |
+| `npm run preview` | Serve the production build locally on port 3000      |

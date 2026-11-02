@@ -18,7 +18,7 @@ export default function CreateCapsule() {
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, "0");
   const localISOTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-    now.getDate()
+    now.getDate(),
   )}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   const onSubmit = async (data) => {
@@ -47,11 +47,7 @@ export default function CreateCapsule() {
     <div className="max-w-md mx-auto mt-12 p-6 bg-white rounded-2xl shadow-lg">
       <h2 className="text-3xl font-bold mb-6 text-center">Create a Time Capsule</h2>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>
@@ -62,9 +58,7 @@ export default function CreateCapsule() {
             className="w-full input input-bordered"
             placeholder="e.g. Dear Future Me"
           />
-          {errors.title && (
-            <p className="text-red-600 text-sm mt-1">{errors.title.message}</p>
-          )}
+          {errors.title && <p className="text-red-600 text-sm mt-1">{errors.title.message}</p>}
         </div>
 
         <div>
@@ -75,9 +69,7 @@ export default function CreateCapsule() {
             className="w-full input input-bordered"
             placeholder="Write something to your future self..."
           />
-          {errors.message && (
-            <p className="text-red-600 text-sm mt-1">{errors.message.message}</p>
-          )}
+          {errors.message && <p className="text-red-600 text-sm mt-1">{errors.message.message}</p>}
         </div>
 
         <div>
@@ -104,19 +96,11 @@ export default function CreateCapsule() {
         </div>
 
         <div className="flex items-center">
-          <input
-            type="checkbox"
-            {...register("isPublic")}
-            className="mr-2"
-          />
+          <input type="checkbox" {...register("isPublic")} className="mr-2" />
           <label>Make this capsule public</label>
         </div>
 
-        <button
-          type="submit"
-          className="btn btn-primary w-full"
-          disabled={loading}
-        >
+        <button type="submit" className="btn btn-primary w-full" disabled={loading}>
           {loading ? "Creating..." : "Create Capsule"}
         </button>
       </form>

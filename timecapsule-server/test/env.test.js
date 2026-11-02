@@ -32,7 +32,11 @@ test("reads every variable and turns PORT into a number", () => {
     CLIENT_ORIGIN: "https://timecapsule.example",
   });
 
-  expect(env).toMatchObject({ NODE_ENV: "production", PORT: 8080, CLIENT_ORIGIN: "https://timecapsule.example" });
+  expect(env).toMatchObject({
+    NODE_ENV: "production",
+    PORT: 8080,
+    CLIENT_ORIGIN: "https://timecapsule.example",
+  });
 });
 
 test("ignores variables it doesn't know", () => {
@@ -72,7 +76,9 @@ test("rejects a JWT_SECRET shorter than 32 characters and says how to make one",
 test.each(["mysql://user@localhost/db", "localhost:5432/db", "psql 'postgresql://user@host/db'"])(
   "rejects a DATABASE_URL that isn't a PostgreSQL connection string: %s",
   (url) => {
-    expect(errorFor({ ...valid, DATABASE_URL: url }).message).toMatch(/DATABASE_URL must be a PostgreSQL/);
+    expect(errorFor({ ...valid, DATABASE_URL: url }).message).toMatch(
+      /DATABASE_URL must be a PostgreSQL/,
+    );
   },
 );
 
@@ -83,15 +89,20 @@ test("accepts the postgres:// form too", () => {
 });
 
 test.each(["0", "65536", "abc", "5000.5"])("rejects PORT=%s", (port) => {
-  expect(errorFor({ ...valid, PORT: port }).message).toMatch(/PORT must be a whole number from 1 to 65535/);
+  expect(errorFor({ ...valid, PORT: port }).message).toMatch(
+    /PORT must be a whole number from 1 to 65535/,
+  );
 });
 
-test.each(["https://timecapsule.example/", "https://timecapsule.example/app", "timecapsule.example"])(
-  "rejects a CLIENT_ORIGIN that isn't a bare origin: %s",
-  (origin) => {
-    expect(errorFor({ ...valid, CLIENT_ORIGIN: origin }).message).toMatch(/CLIENT_ORIGIN must be an origin/);
-  },
-);
+test.each([
+  "https://timecapsule.example/",
+  "https://timecapsule.example/app",
+  "timecapsule.example",
+])("rejects a CLIENT_ORIGIN that isn't a bare origin: %s", (origin) => {
+  expect(errorFor({ ...valid, CLIENT_ORIGIN: origin }).message).toMatch(
+    /CLIENT_ORIGIN must be an origin/,
+  );
+});
 
 test("rejects an unknown NODE_ENV", () => {
   expect(errorFor({ ...valid, NODE_ENV: "staging" }).message).toMatch(
