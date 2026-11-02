@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const { getEnv } = require("./config/env");
+const { prisma } = require("./db");
 const { createRateLimiters, RATE_LIMITS } = require("./middleware/rateLimits");
 const { createMailer } = require("./email/mailers");
 const { createSender, emailLimits } = require("./email/sender");
@@ -9,6 +10,7 @@ const { createAccounts } = require("./services/accounts");
 const { BackgroundTasks } = require("./background");
 const { createAuthRouter } = require("./routes/auth");
 const { createJobsRouter } = require("./routes/jobs");
+const { createStatusRouter } = require("./routes/status");
 const { sendUnlockEmails } = require("./jobs/unlockEmails");
 const capsuleRoutes = require("./routes/capsules");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
@@ -24,6 +26,7 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 //   appUrl         the web client's address, for links in emails (APP_URL)
 //   tasks          runs work after responding (see background.js)
 //   jobSecret      the scheduler's password; without one, /jobs is off (JOB_SECRET)
+//   checkDatabase  resolves once the database answers, for GET /health
 function createApp({
   clientOrigins = getEnv().CLIENT_ORIGIN,
   trustProxy = getEnv().TRUST_PROXY,
@@ -33,6 +36,7 @@ function createApp({
   appUrl = getEnv().APP_URL,
   tasks = new BackgroundTasks(),
   jobSecret = getEnv().JOB_SECRET,
+  checkDatabase = () => prisma.$queryRaw`SELECT 1`,
 } = {}) {
   const app = express();
   const limiters = createRateLimiters(rateLimits);
@@ -61,8 +65,8 @@ function createApp({
   // before it is read into memory (Express's default limit is 100 kB).
   app.use(express.json({ limit: "64kb" }));
 
-  // Health check
-  app.get("/", (req, res) => res.send("Time Capsule API"));
+  // GET /, /health and /ip, for the host and for monitoring.
+  app.use(createStatusRouter({ checkDatabase }));
 
   app.post(["/signup", "/verify-email", "/forgot-password", "/reset-password"], limiters.auth);
   app.post("/login", limiters.auth, limiters.failedLogins);

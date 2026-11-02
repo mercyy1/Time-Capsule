@@ -7,6 +7,8 @@ const { BackgroundTasks } = require("../../src/background");
 const mailers = require("../../src/email/mailers");
 const emailSender = require("../../src/email/sender");
 const unlockEmails = require("../../src/jobs/unlockEmails");
+const status = require("../../src/routes/status");
+const errorHandling = require("../../src/middleware/errorHandler");
 const { createFakeMailer } = require("./mailer");
 
 // The real limits, but too high for any test to reach: each test file shares one
@@ -46,4 +48,6 @@ module.exports = {
   mailers,
   emailSender,
   unlockEmails,
+  status,
+  errorHandling,
 };
