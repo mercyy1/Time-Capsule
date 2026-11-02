@@ -52,9 +52,10 @@ describe("POST /capsules", () => {
       unlockDate,
       isPublic: false,
       slug: expect.stringMatching(UUID),
+      recipientEmail: null,
     });
     const stored = await prisma.capsule.findUnique({ where: { id: res.body.id } });
-    expect(stored).toMatchObject({ ownerId: ada.user.id, notified: false, email: null });
+    expect(stored).toMatchObject({ ownerId: ada.user.id, notified: false, recipientEmail: null });
   });
 
   test("stores isPublic: true", async () => {
@@ -64,6 +65,62 @@ describe("POST /capsules", () => {
 
     expect(capsule.isPublic).toBe(true);
   });
+
+  test("stores the optional recipient email, trimmed and lowercased", async () => {
+    const ada = await signUp();
+
+    const capsule = await createCapsule(ada, { recipientEmail: "  Bob@Example.COM " });
+
+    expect(capsule.recipientEmail).toBe("bob@example.com");
+    const stored = await prisma.capsule.findUnique({ where: { id: capsule.id } });
+    expect(stored.recipientEmail).toBe("bob@example.com");
+  });
+
+  test.each([
+    ["empty", ""],
+    ["blank", "   "],
+    ["null", null],
+    ["left out", undefined],
+  ])("a recipient email that is %s means nobody", async (_case, recipientEmail) => {
+    const ada = await signUp();
+
+    const capsule = await createCapsule(ada, { recipientEmail });
+
+    expect(capsule.recipientEmail).toBeNull();
+  });
+
+  test.each([
+    ["isn't an address", "not-an-email", "Enter a valid email address for the recipient"],
+    ["isn't text", 42, "Recipient email must be text"],
+    [
+      "is too long",
+      `${"a".repeat(64)}@${"b".repeat(190)}.com`,
+      "Recipient email must be at most 254 characters",
+    ],
+  ])(
+    "400 VALIDATION_FAILED for a recipient email that %s",
+    async (_case, recipientEmail, error) => {
+      const ada = await signUp();
+
+      const res = await request(app)
+        .post("/capsules")
+        .set("Authorization", ada.auth)
+        .send({
+          title: "Hello future",
+          message: "the secret",
+          unlockDate: daysFromNow(30).toISOString(),
+          recipientEmail,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error,
+        code: "VALIDATION_FAILED",
+        details: [{ field: "recipientEmail", message: error }],
+      });
+      await expect(prisma.capsule.count()).resolves.toBe(0);
+    },
+  );
 
   test("keeps the exact instant of a date given with a UTC offset", async () => {
     const ada = await signUp();
@@ -180,7 +237,7 @@ describe("POST /capsules", () => {
 
     expect(capsule).toMatchObject({ title: "Hello future", message: "the secret" });
     const stored = await prisma.capsule.findUnique({ where: { id: capsule.id } });
-    expect(stored.email).toBeNull();
+    expect(stored.recipientEmail).toBeNull();
   });
 
   test("requires a token", async () => {
@@ -208,7 +265,10 @@ describe("GET /capsules", () => {
 
   test("returns message: null while a capsule is locked and the message once it unlocks", async () => {
     const ada = await signUp();
-    const locked = await createCapsule(ada, { message: "not yet" });
+    const locked = await createCapsule(ada, {
+      message: "not yet",
+      recipientEmail: "bob@example.com",
+    });
     const unlocked = await seedCapsule({
       ownerId: ada.user.id,
       unlockDate: daysFromNow(-1),
@@ -225,6 +285,7 @@ describe("GET /capsules", () => {
         unlockDate: unlocked.unlockDate.toISOString(),
         isPublic: false,
         slug: unlocked.slug,
+        recipientEmail: null,
         message: "hello again",
       },
       {
@@ -233,6 +294,7 @@ describe("GET /capsules", () => {
         unlockDate: locked.unlockDate,
         isPublic: false,
         slug: locked.slug,
+        recipientEmail: "bob@example.com",
         message: null,
       },
     ]);
@@ -256,7 +318,7 @@ describe("GET /capsules/slug/:slug", () => {
 
   test("owner, locked: which capsule it is (was only the status), never the message", async () => {
     const ada = await signUp();
-    const capsule = await createCapsule(ada);
+    const capsule = await createCapsule(ada, { recipientEmail: "bob@example.com" });
 
     const res = await open(capsule.slug, ada);
 
@@ -274,6 +336,7 @@ describe("GET /capsules/slug/:slug", () => {
       ownerId: ada.user.id,
       unlockDate: daysFromNow(-1),
       message: "hello again",
+      recipientEmail: "bob@example.com",
     });
 
     const res = await open(capsule.slug, ada);
@@ -307,7 +370,10 @@ describe("GET /capsules/slug/:slug", () => {
   test("stranger, public and locked: only the status and unlock time", async () => {
     const ada = await signUp();
     const bob = await signUp();
-    const capsule = await createCapsule(ada, { isPublic: true });
+    const capsule = await createCapsule(ada, {
+      isPublic: true,
+      recipientEmail: "cy@example.com",
+    });
 
     const res = await open(capsule.slug, bob);
 
@@ -315,7 +381,7 @@ describe("GET /capsules/slug/:slug", () => {
     expect(res.body).toEqual({ status: "locked", unlocksAt: capsule.unlockDate });
   });
 
-  test("stranger, public and unlocked: the capsule with its message", async () => {
+  test("stranger, public and unlocked: the capsule with its message, not who it was emailed to", async () => {
     const ada = await signUp();
     const bob = await signUp();
     const capsule = await seedCapsule({
@@ -323,6 +389,7 @@ describe("GET /capsules/slug/:slug", () => {
       unlockDate: daysFromNow(-1),
       isPublic: true,
       message: "for everyone",
+      recipientEmail: "cy@example.com",
     });
 
     const res = await open(capsule.slug, bob);
@@ -372,7 +439,10 @@ describe("GET /capsules/slug/:slug", () => {
 describe("GET /capsules/public/:slug", () => {
   test("anyone, locked: only the status and unlock time", async () => {
     const ada = await signUp();
-    const capsule = await createCapsule(ada, { isPublic: true });
+    const capsule = await createCapsule(ada, {
+      isPublic: true,
+      recipientEmail: "cy@example.com",
+    });
 
     const res = await request(app).get(`/capsules/public/${capsule.slug}`);
 
@@ -380,13 +450,14 @@ describe("GET /capsules/public/:slug", () => {
     expect(res.body).toEqual({ status: "locked", unlocksAt: capsule.unlockDate });
   });
 
-  test("anyone, unlocked: display fields only (no id, owner, email or flags)", async () => {
+  test("anyone, unlocked: display fields only (no id, owner, recipient or flags)", async () => {
     const ada = await signUp();
     const capsule = await seedCapsule({
       ownerId: ada.user.id,
       unlockDate: daysFromNow(-1),
       isPublic: true,
       message: "for everyone",
+      recipientEmail: "cy@example.com",
     });
 
     const res = await request(app).get(`/capsules/public/${capsule.slug}`);

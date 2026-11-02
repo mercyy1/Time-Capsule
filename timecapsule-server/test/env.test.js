@@ -22,6 +22,8 @@ test("applies defaults for the optional variables", () => {
     PORT: 5000,
     CLIENT_ORIGIN: ["http://localhost:3000"],
     TRUST_PROXY: 0,
+    APP_URL: "http://localhost:3000",
+    EMAIL_DAILY_LIMIT: 100,
   });
 });
 
@@ -32,6 +34,11 @@ test("reads every variable and turns PORT into a number", () => {
     PORT: "8080",
     CLIENT_ORIGIN: "https://timecapsule.example",
     TRUST_PROXY: "1",
+    APP_URL: "https://timecapsule.example",
+    EMAIL_FROM: "TimeCapsule <capsules@timecapsule.example>",
+    RESEND_API_KEY: "re_123456789",
+    JOB_SECRET: "j".repeat(32),
+    EMAIL_DAILY_LIMIT: "3000",
   });
 
   expect(env).toMatchObject({
@@ -39,6 +46,11 @@ test("reads every variable and turns PORT into a number", () => {
     PORT: 8080,
     CLIENT_ORIGIN: ["https://timecapsule.example"],
     TRUST_PROXY: 1,
+    APP_URL: "https://timecapsule.example",
+    EMAIL_FROM: "TimeCapsule <capsules@timecapsule.example>",
+    RESEND_API_KEY: "re_123456789",
+    JOB_SECRET: "j".repeat(32),
+    EMAIL_DAILY_LIMIT: 3000,
   });
 });
 
@@ -134,11 +146,85 @@ test("rejects an unknown NODE_ENV", () => {
   );
 });
 
-test("requires CLIENT_ORIGIN in production, reported with the other problems", () => {
+test("requires the client, email and job settings in production, listed with the other problems", () => {
   const err = errorFor({ DATABASE_URL: valid.DATABASE_URL, NODE_ENV: "production" });
 
-  expect(err.message).toMatch(/CLIENT_ORIGIN is required when NODE_ENV is production/);
+  for (const name of ["CLIENT_ORIGIN", "APP_URL", "EMAIL_FROM", "RESEND_API_KEY", "JOB_SECRET"]) {
+    expect(err.message).toMatch(new RegExp(`${name} is required when NODE_ENV is production`));
+  }
   expect(err.message).toMatch(/JWT_SECRET is required/);
+});
+
+test("in production, a malformed setting is reported once, as malformed", () => {
+  const err = errorFor({
+    ...valid,
+    NODE_ENV: "production",
+    CLIENT_ORIGIN: "https://timecapsule.example",
+    APP_URL: "https://timecapsule.example",
+    EMAIL_FROM: "capsules@timecapsule.example",
+    RESEND_API_KEY: "re_123",
+    JOB_SECRET: "too-short",
+  });
+
+  expect(err.message).toMatch(/JOB_SECRET must be at least 32 characters/);
+  expect(err.message).not.toMatch(/JOB_SECRET is required/);
+});
+
+describe("email settings", () => {
+  test.each(["capsules@timecapsule.example", "TimeCapsule <capsules@timecapsule.example>"])(
+    "accepts EMAIL_FROM=%s",
+    (from) => {
+      expect(parseEnv({ ...valid, EMAIL_FROM: from }).EMAIL_FROM).toBe(from);
+    },
+  );
+
+  test.each([
+    "capsules",
+    "TimeCapsule capsules@timecapsule.example",
+    "TimeCapsule <capsules@timecapsule.example",
+    "<capsules@timecapsule.example>",
+    "capsules@timecapsule.example, other@timecapsule.example",
+    "Time\r\nBcc: x@y.z <capsules@timecapsule.example>",
+  ])("rejects EMAIL_FROM=%j", (from) => {
+    expect(errorFor({ ...valid, EMAIL_FROM: from }).message).toMatch(
+      /EMAIL_FROM must be an address like capsules@example.com/,
+    );
+  });
+
+  test("requires EMAIL_FROM once RESEND_API_KEY is set, even outside production", () => {
+    expect(errorFor({ ...valid, RESEND_API_KEY: "re_123" }).message).toMatch(
+      /EMAIL_FROM is required when RESEND_API_KEY is set/,
+    );
+  });
+
+  test("rejects a RESEND_API_KEY that isn't one", () => {
+    expect(errorFor({ ...valid, RESEND_API_KEY: "sk_live_123" }).message).toMatch(
+      /RESEND_API_KEY must be a Resend API key \(they start with re_\)/,
+    );
+  });
+
+  test.each([
+    "https://timecapsule.example/",
+    "https://timecapsule.example/app",
+    "timecapsule.example",
+  ])("rejects an APP_URL that isn't a bare origin: %s", (url) => {
+    expect(errorFor({ ...valid, APP_URL: url }).message).toMatch(
+      /APP_URL must be the web client's address/,
+    );
+  });
+
+  test.each(["9", "1000001", "1.5", "lots"])("rejects EMAIL_DAILY_LIMIT=%s", (limit) => {
+    expect(errorFor({ ...valid, EMAIL_DAILY_LIMIT: limit }).message).toMatch(
+      /EMAIL_DAILY_LIMIT must be a whole number from 10 to 1000000/,
+    );
+  });
+
+  test("rejects a JOB_SECRET shorter than 32 characters and says how to make one", () => {
+    const err = errorFor({ ...valid, JOB_SECRET: "j".repeat(31) });
+
+    expect(err.message).toMatch(/JOB_SECRET must be at least 32 characters/);
+    expect(err.message).toMatch(/randomBytes/);
+  });
 });
 
 test("never includes the values in the error message", () => {
@@ -146,7 +232,9 @@ test("never includes the values in the error message", () => {
     DATABASE_URL: "mysql://admin:hunter2-db-password@db.internal/app",
     JWT_SECRET: "short-but-secret",
     CLIENT_ORIGIN: "https://secret-host.example/path",
+    RESEND_API_KEY: "not-a-key-hunter3",
+    JOB_SECRET: "job-hunter4",
   });
 
-  expect(err.message).not.toMatch(/hunter2|short-but-secret|secret-host/);
+  expect(err.message).not.toMatch(/hunter|short-but-secret|secret-host/);
 });

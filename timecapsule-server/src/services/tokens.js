@@ -1,6 +1,8 @@
 // Login tokens are JWTs (JSON Web Tokens): signed JSON the client sends back on
-// every request to prove who it is. They hold the user's id and email and
-// expire after one day.
+// every request to prove who it is. They hold the user's id and email, and the
+// account's token version (`ver`) when they were made, and expire after one
+// day. Changing the password raises the account's version, which ends every
+// token made before.
 const jwt = require("jsonwebtoken");
 const { getEnv } = require("../config/env");
 
@@ -10,13 +12,13 @@ const { getEnv } = require("../config/env");
 const ALGORITHM = "HS256";
 
 function generateAccessToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, getEnv().JWT_SECRET, {
+  return jwt.sign({ id: user.id, email: user.email, ver: user.tokenVersion }, getEnv().JWT_SECRET, {
     algorithm: ALGORITHM,
     expiresIn: "1d",
   });
 }
 
-// Checks a token. Returns { payload } ({ id, email, iat, exp }) if it is valid,
+// Checks a token. Returns { payload } ({ id, email, ver, iat, exp }) if it is valid,
 // otherwise { problem: "expired" } for a token that was valid but ran out, or
 // { problem: "invalid" } for anything else (garbage, another secret, tampered).
 function verifyAccessToken(token) {

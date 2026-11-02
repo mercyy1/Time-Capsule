@@ -13,12 +13,34 @@ const TRUST_PROXY_ERROR =
 const ORIGIN_ERROR =
   "must be an origin like https://example.com (no path, no trailing slash), " +
   "or several separated by commas";
+const APP_URL_ERROR =
+  "must be the web client's address, like https://example.com (no path, no trailing slash)";
+const EMAIL_FROM_ERROR =
+  'must be an address like capsules@example.com, or a name and an address like "TimeCapsule <capsules@example.com>"';
+const RESEND_KEY_ERROR = "must be a Resend API key (they start with re_)";
+const DAILY_LIMIT_ERROR = "must be a whole number from 10 to 1000000";
 const DEFAULT_CLIENT_ORIGIN = "http://localhost:3000";
+
+// What production can't run without. Locally the server works without them:
+// links in emails point at the local client, emails are printed in the server's
+// log instead of sent (no RESEND_API_KEY), and the unlock-email job runs from
+// the command line (no JOB_SECRET, so its HTTP endpoint is off).
+const REQUIRED_IN_PRODUCTION = [
+  "CLIENT_ORIGIN",
+  "APP_URL",
+  "EMAIL_FROM",
+  "RESEND_API_KEY",
+  "JOB_SECRET",
+];
 
 // Browsers send the page's origin (scheme, host and port, e.g. https://example.com)
 // and CORS compares it character for character, so a path or trailing slash
 // would block every request from the real site.
 const isOrigin = (value) => URL.canParse(value) && new URL(value).origin === value;
+
+// "capsules@example.com" or "TimeCapsule <capsules@example.com>".
+const ADDRESS = String.raw`[^\s<>@"]+@[^\s<>@"]+\.[^\s<>@"]+`;
+const SENDER = new RegExp(`^(?:${ADDRESS}|[^<>\\r\\n]+ <${ADDRESS}>)$`);
 
 const shape = {
   NODE_ENV: z
@@ -60,18 +82,53 @@ const shape = {
     .min(0, { error: TRUST_PROXY_ERROR })
     .max(5, { error: TRUST_PROXY_ERROR })
     .default(0),
+  // Where the web client lives, for the links in emails (confirm your address,
+  // reset your password, open your capsule).
+  APP_URL: z.string().refine(isOrigin, { error: APP_URL_ERROR }).optional(),
+  // Who emails come from. Its domain must be verified in Resend.
+  EMAIL_FROM: z.string().regex(SENDER, { error: EMAIL_FROM_ERROR }).optional(),
+  // Sends emails through Resend. Without it, emails are printed in the server's log.
+  RESEND_API_KEY: z
+    .string()
+    .regex(/^re_\S+$/, { error: RESEND_KEY_ERROR })
+    .optional(),
+  // The password the scheduler sends to run the unlock-email job over HTTP.
+  JOB_SECRET: z
+    .string()
+    .min(32, { error: `must be at least 32 characters. ${SECRET_HINT}` })
+    .optional(),
+  // How many emails the email provider lets us send per day (UTC). Resend's free
+  // plan: 100. The server's own limits are shares of it.
+  EMAIL_DAILY_LIMIT: z.coerce
+    .number({ error: DAILY_LIMIT_ERROR })
+    .int({ error: DAILY_LIMIT_ERROR })
+    .min(10, { error: DAILY_LIMIT_ERROR })
+    .max(1_000_000, { error: DAILY_LIMIT_ERROR })
+    .default(100),
 };
 
-const schema = z
-  .object(shape)
-  .refine((env) => env.NODE_ENV !== "production" || env.CLIENT_ORIGIN !== undefined, {
+// Every check below runs even when others failed (`when`), so one start-up
+// lists all the problems at once.
+const always = () => true;
+
+let schema = z.object(shape);
+for (const name of REQUIRED_IN_PRODUCTION) {
+  schema = schema.refine((env) => env.NODE_ENV !== "production" || env[name] !== undefined, {
     error: "is required when NODE_ENV is production",
-    path: ["CLIENT_ORIGIN"],
-    when: () => true, // report it together with any other problems
+    path: [name],
+    when: always,
+  });
+}
+schema = schema
+  .refine((env) => env.RESEND_API_KEY === undefined || env.EMAIL_FROM !== undefined, {
+    error: "is required when RESEND_API_KEY is set (it's who the emails come from)",
+    path: ["EMAIL_FROM"],
+    when: always,
   })
   .transform((env) => ({
     ...env,
     CLIENT_ORIGIN: env.CLIENT_ORIGIN ?? Object.freeze([DEFAULT_CLIENT_ORIGIN]),
+    APP_URL: env.APP_URL ?? DEFAULT_CLIENT_ORIGIN,
   }));
 
 class EnvError extends Error {

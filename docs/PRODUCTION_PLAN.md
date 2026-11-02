@@ -5,7 +5,8 @@
 > re-check them before relying on them.
 >
 > **Progress:** Phase 1 done on 2026-11-01 (branch `phase-1-foundations`; notes under Phase 1). Phase 2 done on
-> 2026-11-01 (branch `phase-2-security`; notes under Phase 2).
+> 2026-11-01 (branch `phase-2-security`; notes under Phase 2). Phase 3 done on 2026-11-02 (branch
+> `phase-3-notifications`; notes under Phase 3).
 
 ## 1. Summary
 
@@ -160,9 +161,11 @@ wrong behaviour users will hit, or a weakness that grows with use · **Low** = p
 | e | Upgrades | **Latest within current majors now** (Prisma 6.19.x, Express 5.3.x, …), **Create React App → Vite in Phase 1**, **Node 24 LTS**; Tailwind 4 with the Phase 4 redesign; **Prisma 7 later** | CRA is deprecated and causes most client vulnerabilities; Prisma 7 needs an ES-module rewrite of the server; Node 22 leaves support in April 2027. |
 | f | Scope | **Password reset, email verification at signup and Playwright end-to-end tests are all in** | People return to a capsule months or years later and forget passwords; we'll be emailing addresses people type in. |
 | — | Railway database | **Start fresh; never connect to it** | Nothing to keep. You can delete the Railway project yourself whenever you like. |
+| g | `Capsule.email` (Phase 3) | **Someone to email the capsule to when it opens**, renamed `recipientEmail` | The form already asked for it; the owner is emailed anyway, so a second address is what makes it useful. |
+| h | Scheduling the unlock emails (Phase 3) | **cron-job.org calls `POST /jobs/unlock-emails` every 30 minutes** with a secret | Free, reliable, keeps a history and emails on failures. Render's cron jobs cost money, GitHub's schedules can be late or dropped, and a timer inside the API doesn't run while Render's free instance sleeps. |
 
-**Decided later, when we get there:** where the login token lives (localStorage or httpOnly cookie) — Phase 2;
-what `Capsule.email` means and how the email job is scheduled — Phase 3; which domain to use — account steps.
+**Decided later, when we get there:** which domain to use — account steps. (Where the login token lives was decided
+in Phase 2: `localStorage`.)
 
 ### Free-tier catches we're accepting (checked 2026-11-01)
 - **Render free web service:** sleeps after **15 minutes** without traffic and takes **about a minute** to wake.
@@ -308,6 +311,61 @@ no route behaves differently.
    day, so cap them per address *and* per day, or a bot can use up the quota and block unlock emails. Revisit
    account-level login protection (for example, emailing the owner after repeated failures).
 
+**Status: done.** Decisions and what changed from the plan while doing it:
+- **Your decisions:** `Capsule.email` became `recipientEmail`, someone to email the capsule to when it opens (the
+  column was renamed in the migration, not dropped and re-added); the job is run by cron-job.org every 30 minutes.
+- **Signup no longer reveals who has an account (M2):** it always answers 202 "We've sent an email to …". A new
+  address gets a confirmation link; one with a confirmed account gets "you already have an account" with links to
+  log in or reset the password. The account is created at once but can't log in until the address is confirmed:
+  the right password before then answers 403 `EMAIL_NOT_VERIFIED` and emails a new link.
+- **Signing up again before confirming** sends a new link, and opening a link sets the password chosen at the
+  signup that sent it, so a stranger who signed up first with someone else's address can't choose their password.
+  Each new link replaces the older ones.
+- **Links** carry a 256-bit secret after `#` (browsers never send that part to servers, so it stays out of logs);
+  only its SHA-256 hash is stored. Confirmation links work for 24 hours, reset links once for 1 hour. Resetting the
+  password also confirms the address (the link reached its inbox) and logs the user in.
+- **`tokenVersion`:** login tokens carry the account's version, and a reset raises it, so every older token gets
+  401 `TOKEN_REVOKED`. Tokens made before this phase have no version and get 401 `INVALID_TOKEN`: everyone logs in
+  once more after the deploy (nobody uses the app yet).
+- **The email quota is rationed** by counting `EmailLog` rows, one written before each email is sent: of the 100 a
+  day, account emails get at most half and capsule emails at most 90%, one owner's capsule emails at most a quarter,
+  and one address at most 3 account emails an hour. When the day's account emails are used up, signup and "forgot
+  password" answer 503 `EMAIL_LIMIT_REACHED` (with `Retry-After`) instead of promising an email. A PostgreSQL
+  advisory lock makes reservations one at a time: without it, 10 simultaneous ones all got past a limit of 3.
+- **Exactly one email per unlocked capsule:** a run claims capsules with a 5-minute lease (`notifyLockedUntil`) and
+  `FOR UPDATE SKIP LOCKED`; emails recorded as sent aren't sent again; and every email goes to Resend with an
+  idempotency key made from the capsule and the kind of email (Resend keeps keys for 24 hours), so one sent just
+  before a crash isn't sent twice. Tests run two jobs at once, crash one mid-send and hold a row lock to check each
+  part, and each of those tests fails when its part is removed.
+- **The job stops cleanly:** at the day's limit, or when Resend is out of quota, down or refusing our key, the run
+  stops and the next one carries on; an owner past their share waits for the next day while other owners' capsules
+  go out; an email Resend refuses (a bad address) is retried on the next 2 runs, then given up. A run starts nothing
+  new after 15 seconds (cron-job.org waits 30). Only a refused key or sender answers an error (502), so
+  cron-job.org's failure emails mean a person must act. Each run also deletes email logs older than 30 days and
+  expired links.
+- **Owners whose address isn't confirmed** (accounts from before this phase) get no unlock emails until they
+  confirm it; their capsules wait.
+- **A time-zone trap:** Prisma sends a `Date` in raw SQL as a timestamp *with* a time zone, while our columns store
+  UTC without one, so comparisons went through the database session's time zone. The job's query converts to UTC
+  first, and the test database now runs on Toronto time so this kind of mistake fails the tests.
+- **Client, the minimum for these flows** (Phase 4 restyles everything): the signup message, the confirm / forgot /
+  reset pages, the recipient field, and part of Phase 4's item 1 that the unlock email needed: a 401 from an ended
+  session (expired, or the password was reset) now logs out, says why, and goes back to the page after logging in;
+  `/capsule/:slug` is protected (L2), so the link in the email works.
+- **Account-level login protection, revisited: not added.** Emailing an owner after repeated failed logins would
+  come out of the same 50 account emails a day, so a bot failing logins across many accounts could use them up and
+  block signups. The per-IP failed-login limit stays; a CAPTCHA is the better next step (Phase 5).
+- **Resend is called with Node's built-in `fetch`**, not its SDK: one small request, no new dependency, and full
+  control over the timeout (8 seconds) and the idempotency key. Without `RESEND_API_KEY` (local development), emails
+  are printed in the server's log instead.
+- `npm audit` (no dependency was added in this phase):
+  - Server production dependencies: unchanged, the single `deepmerge-ts` advisory inside Prisma 6's CLI config
+    loader (only Prisma 7 fixes it).
+  - Server dev tools: the same moderate `glob`/`minimatch` advisories in Jest, ESLint and nodemon, plus a new low
+    one in `deepmerge` inside Jest's config loader (prototype pollution when merging objects); it only ever merges
+    our own Jest config, and no fixed Jest release exists yet.
+  - Client: none in production dependencies; the same 6 moderate inside ESLint.
+
 ### Phase 4 — Frontend (`phase-4-frontend`)
 1. Every screen handles loading, empty, error and expired-session states; a 401 logs you out with a message instead
    of an `alert`. (M4, L8)
@@ -318,7 +376,8 @@ no route behaves differently.
    Playwright runs the flow in several time zones.
 4. Responsive and keyboard accessible: real links and buttons for cards, labelled inputs, visible focus (M14, L8).
    Tailwind 4 upgrade alongside the redesign, using the `frontend-design` skill (now available).
-5. Verify-email and reset-password screens for Phase 3's flows.
+5. Restyle Phase 3's plain screens (check your email, confirm, forgot and reset password) with the rest; item 1's
+   expired-session handling and the protected `/capsule/:slug` already exist since Phase 3.
 6. Playwright end-to-end test of the main flow, including a capsule seeded with a past unlock date to check the
    unlocked view.
 
@@ -333,7 +392,22 @@ no route behaves differently.
 4. README rewritten for production: what it does, live link, Mermaid architecture diagram, local setup, deploy
    steps, environment variables.
 5. Account set-up one step at a time, waiting for you at each: domain (the Student Pack includes a free one for a
-   year), Cloudflare, Neon, Render, Resend (domain verification records); a new production `JWT_SECRET`.
+   year), Cloudflare, Neon, Render, Resend (domain verification records, an API key, `EMAIL_FROM` on that domain),
+   cron-job.org; a new production `JWT_SECRET` and `JOB_SECRET`, and `APP_URL` set to the client's address.
+6. From Phase 3, for the deployed app:
+   - **Render's free instance sleeps** after 15 minutes and takes about a minute to wake, but cron-job.org gives up
+     after 30 seconds and disables a job after more than 25 failures in a row. Keep the API awake with a second
+     cron-job.org job calling `GET /` every 10–14 minutes (that route doesn't touch the database, so Neon can still
+     suspend; one always-on service fits in Render's 750 free hours), and check the unlock job's history after the
+     first day.
+   - **Graceful shutdown** must wait for `tasks.idle()`: signup and password-reset emails are sent after the
+     response, so a deploy could otherwise cut them off.
+   - **Neon's pooled connections** (PgBouncer in transaction mode): the advisory lock we use lasts one
+     transaction, which works there (locks held for a whole session don't). Check Neon's and Prisma's current docs
+     on whether that URL still needs `pgbouncer=true`; migrations use the direct URL.
+   - **Bot signups** send confirmation emails to addresses people didn't give: the limits cap the damage (3 an hour
+     per address, 50 a day), but bounces hurt the sending domain's reputation. Add a CAPTCHA (Cloudflare Turnstile is
+     free) to signup and "forgot password".
 
 ### Phase 6 — Keeping it running (`phase-6-operations`)
 1. Error tracking (Sentry — the Student Pack includes a plan) for API and client, with message text scrubbed. (M10)
@@ -380,6 +454,10 @@ night → `05:30Z` (first occurrence).
   Koyeb https://www.koyeb.com/docs/reference/instances · Heroku https://www.heroku.com/pricing/
 - Resend: pricing https://resend.com/pricing · test-sender limit https://resend.com/docs/knowledge-base/403-error-resend-dev-domain ·
   Postmark https://postmarkapp.com/pricing
+- Added in Phase 3 (checked 2026-11-02): Resend API (User-Agent required) https://resend.com/docs/api-reference/introduction ·
+  errors https://resend.com/docs/api-reference/errors · idempotency keys https://resend.com/docs/dashboard/emails/idempotency-keys ·
+  cron-job.org FAQ (30-second timeout, disabled after more than 25 failures) https://cron-job.org/en/faq/ ·
+  Prisma raw queries https://www.prisma.io/docs/orm/prisma-client/using-raw-sql/raw-queries
 - GitHub Student Developer Pack: https://education.github.com/pack
 - GitHub Actions `schedule` limits: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
 - Prisma 7 upgrade guide: https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7

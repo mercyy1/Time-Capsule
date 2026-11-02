@@ -9,6 +9,7 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "job:unlock-emails": "node src/jobs/cli.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

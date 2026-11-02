@@ -10,10 +10,15 @@ const RATE_LIMITS = Object.freeze({
   // Every request: far above what people clicking around need (a page watching a
   // locked capsule asks every 10 seconds), but it stops floods and scraping.
   general: { limit: 1000, windowMs: 5 * MINUTE, message: "Too many requests." },
-  // Signups and logins together. Each one runs bcrypt, which is slow on purpose,
-  // so this also keeps a flood of them from tying up the server. Room for a class
-  // signing up together on one network.
-  auth: { limit: 30, windowMs: 15 * MINUTE, message: "Too many sign-up and login attempts." },
+  // The account routes together: signing up, confirming an address, logging in,
+  // and resetting a password. Most run bcrypt, which is slow on purpose, so this
+  // also keeps a flood of them from tying up the server. Room for a class signing
+  // up together on one network.
+  auth: {
+    limit: 30,
+    windowMs: 15 * MINUTE,
+    message: "Too many sign-up, login and password reset attempts.",
+  },
   // Failed logins only (a wrong password, for example): slows down password
   // guessing without ever stopping someone who types theirs correctly.
   failedLogins: { limit: 10, windowMs: 15 * MINUTE, message: "Too many failed logins." },

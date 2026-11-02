@@ -24,7 +24,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 router.post("/", authenticate, async (req, res) => {
-  const { title, message, unlockDate, isPublic } = parse(newCapsuleBody, req.body);
+  const { title, message, unlockDate, isPublic, recipientEmail } = parse(newCapsuleBody, req.body);
 
   const capsule = await capsules.createCapsule({
     ownerId: req.user.id,
@@ -32,6 +32,7 @@ router.post("/", authenticate, async (req, res) => {
     message,
     unlockDate,
     isPublic,
+    recipientEmail,
   });
   // 201 Created, with the new capsule's address in the Location header.
   res.status(201).location(`/capsules/slug/${capsule.slug}`).json(capsule);
