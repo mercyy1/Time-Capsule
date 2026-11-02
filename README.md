@@ -39,7 +39,7 @@ For authenticated routes, send `Authorization: Bearer <token>`. A capsule that h
 ```bash
 git clone https://github.com/mercyy1/Time-Capsule.git
 cd Time-Capsule
-docker compose up -d          # PostgreSQL on localhost:5432 (dev and test databases)
+docker compose up -d          # PostgreSQL on 127.0.0.1:5432 (dev and test databases)
 
 cd timecapsule-server
 npm ci                        # also generates the Prisma client

@@ -1,7 +1,8 @@
 // Which database the tests use, and a check that it really is a test database:
 // the tests delete all of its data before every test.
+// 127.0.0.1 rather than localhost: see DATABASE_URL in .env.example.
 const DEFAULT_TEST_DATABASE_URL =
-  "postgresql://timecapsule:timecapsule@localhost:5432/timecapsule_test";
+  "postgresql://timecapsule:timecapsule@127.0.0.1:5432/timecapsule_test";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL || DEFAULT_TEST_DATABASE_URL;
 
