@@ -19,5 +19,9 @@ export default defineConfig([
     // Catches the commonest end-to-end bug, a missing await, among others.
     files: ["tests/**"],
     extends: [playwright.configs["flat/recommended"]],
+    rules: {
+      // Helpers named expect… hold a test's assertions.
+      "playwright/expect-expect": ["warn", { assertFunctionPatterns: ["^expect"] }],
+    },
   },
 ]);

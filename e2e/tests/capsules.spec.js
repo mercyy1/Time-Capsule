@@ -12,6 +12,72 @@ import settings from "../support/settings.cjs";
 const DAY = 24 * 60 * 60 * 1000;
 const inDays = (days) => new Date(Date.now() + days * DAY).toISOString();
 
+// The datetime-local value ("2027-01-15T09:30") for a time of day `days` from now,
+// in the browser's time zone.
+const localDateTime = (page, days, hour, minute) =>
+  page.evaluate(
+    ([days, hour, minute]) => {
+      const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      date.setHours(hour, minute, 0, 0);
+      const pad = (n) => String(n).padStart(2, "0");
+      return (
+        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+        `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+      );
+    },
+    [days, hour, minute],
+  );
+
+test("write a capsule and find it sealed", { tag: "@phone" }, async ({ page, account }) => {
+  await logIn(page, account);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Nothing sealed yet" })).toBeVisible();
+  await page.getByRole("link", { name: "Write your first capsule" }).click();
+
+  await page.getByLabel("Title").fill("For the class of 2030");
+  await page.getByLabel("Message").fill("Remember the walk along the river.");
+  await page.getByLabel("Don't open before").fill(await localDateTime(page, 3, 9, 30));
+  await expect(page.getByText(/^It opens .+ at 9:30 AM E[SD]T, in [23] days/)).toBeVisible();
+  await page.getByLabel("Email it to someone when it opens").fill("friend@example.com");
+  await page.getByLabel("Share it with a link").check();
+  await page.getByRole("button", { name: "Seal capsule" }).click();
+
+  // Its own page: sealed, so the message isn't there.
+  await expect(page.getByText("Your capsule is sealed.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "For the class of 2030" })).toBeVisible();
+  await expect(page.getByRole("timer")).toHaveText(/^Opens in [23] days/);
+  await expect(page.getByText("Remember the walk")).toHaveCount(0);
+  await expect(
+    page.getByText("friend@example.com also gets it by email when it opens."),
+  ).toBeVisible();
+  await expect(page.getByLabel("Share it with a link")).toHaveValue(/\/public\/[0-9a-f-]{36}$/);
+
+  // And on the dashboard.
+  await page.getByRole("link", { name: "Back to your capsules" }).click();
+  const card = page.getByRole("region", { name: "Sealed" }).getByRole("listitem");
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText("For the class of 2030");
+  await expect(card).toContainText(/Don't open before .+ 9:30 AM/);
+  await expect(card).toContainText("Also emailed to friend@example.com");
+});
+
+test("the form says what's missing before sending anything", async ({ page, account }) => {
+  await logIn(page, account);
+  await page.goto("/create");
+  await page.getByRole("button", { name: "Seal capsule" }).click();
+  await expect(page.getByLabel("Title")).toHaveAccessibleDescription("Give it a title");
+  await expect(page.getByLabel("Message")).toHaveAccessibleDescription("Write a message");
+  await expect(page.getByLabel("Don't open before")).toHaveAccessibleDescription(
+    /^Choose when it opens/,
+  );
+
+  await page.getByLabel("Don't open before").fill(await localDateTime(page, -1, 9, 0));
+  await page.getByRole("button", { name: "Seal capsule" }).click();
+  await expect(page.getByLabel("Don't open before")).toHaveAccessibleDescription(
+    /^Choose a time in the future/,
+  );
+});
+
 test(
   "the owner can copy a shared capsule's link, and delete it after confirming",
   { tag: "@phone" },
