@@ -159,6 +159,16 @@ describe("POST /capsules", () => {
     expect(capsule.message).toHaveLength(10_000);
   });
 
+  test("accepts the largest capsule in bytes, all emoji, under the 64 kB body limit", async () => {
+    const ada = await signUp();
+    // 4 bytes each in UTF-8; the request body is about 41 kB.
+    const fields = { title: "🎉".repeat(200), message: "😀".repeat(10_000) };
+
+    const capsule = await createCapsule(ada, fields);
+
+    expect(capsule).toMatchObject(fields);
+  });
+
   test("trims the title and message, and ignores fields it doesn't know such as email", async () => {
     const ada = await signUp();
 

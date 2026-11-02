@@ -18,14 +18,14 @@ describe("one JSON error shape", () => {
     expect(res.body).toEqual({ error: "The request body isn't valid JSON", code: "INVALID_JSON" });
   });
 
-  test("a body over the size limit gets 413 PAYLOAD_TOO_LARGE, not 500", async () => {
+  test("a body over the 64 kB limit (was 100 kB) gets 413 PAYLOAD_TOO_LARGE, not 500", async () => {
     const res = await request(app)
       .post("/signup")
-      .send({ email: "ada@example.com", password: "x".repeat(200 * 1024) });
+      .send({ email: "ada@example.com", password: "x".repeat(65 * 1024) });
 
     expect(res.status).toBe(413);
     expect(res.body).toEqual({
-      error: "The request body is too large (the limit is 100 kB)",
+      error: "The request body is too large (the limit is 64 kB)",
       code: "PAYLOAD_TOO_LARGE",
     });
   });

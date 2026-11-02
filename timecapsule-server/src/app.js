@@ -15,7 +15,10 @@ function createApp() {
   // X-Powered-By header advertising Express.
   app.use(helmet());
   app.use(cors({ origin: getEnv().CLIENT_ORIGIN }));
-  app.use(express.json());
+  // The largest valid request, a capsule whose 10,000-character message is all
+  // 4-byte characters such as emoji, is about 41 kB; anything over 64 kB is refused
+  // before it is read into memory (Express's default limit is 100 kB).
+  app.use(express.json({ limit: "64kb" }));
 
   // Health check
   app.get("/", (req, res) => res.send("Time Capsule API"));
