@@ -7,27 +7,8 @@ const isLocked = (capsule, now = new Date()) => now < capsule.unlockDate;
 // All a locked capsule reveals: that it is locked, and when it opens.
 const toLockedView = (capsule) => ({ status: "locked", unlocksAt: capsule.unlockDate });
 
-// A locked capsule as shown to its owner: also which capsule it is (for the page
-// title and the Delete button), but still never the message.
-const toOwnerLockedView = (capsule) => ({
-  ...toLockedView(capsule),
-  capsule: { id: capsule.id, title: capsule.title, unlockDate: capsule.unlockDate },
-});
-
-// An unlocked capsule as shown to a signed-in user (its owner, or anyone if
-// public), so never the recipient's email: that is for the owner's list only.
-const toUnlockedView = (capsule) => ({
-  status: "unlocked",
-  capsule: {
-    id: capsule.id,
-    title: capsule.title,
-    message: capsule.message,
-    unlockDate: capsule.unlockDate,
-  },
-});
-
 // An unlocked capsule as shown on the public share page: display fields only,
-// never the owner id, the recipient's email or internal flags.
+// never the id, the owner, the recipient's email or internal flags.
 const toPublicView = (capsule) => ({
   status: "unlocked",
   capsule: {
@@ -38,6 +19,33 @@ const toPublicView = (capsule) => ({
   },
 });
 
+// A capsule as shown to its owner: everything they set (for the page, the share
+// link and the Delete button), but still never the message while it's locked.
+function toOwnerView(capsule, now = new Date()) {
+  const locked = isLocked(capsule, now);
+  return {
+    ...(locked ? toLockedView(capsule) : { status: "unlocked" }),
+    isOwner: true,
+    capsule: {
+      id: capsule.id,
+      title: capsule.title,
+      unlockDate: capsule.unlockDate,
+      isPublic: capsule.isPublic,
+      slug: capsule.slug,
+      recipientEmail: capsule.recipientEmail,
+      createdAt: capsule.createdAt,
+      ...(!locked && { message: capsule.message }),
+    },
+  };
+}
+
+// Someone else's public capsule, as shown to a signed-in user: what the public
+// share page shows.
+const toVisitorView = (capsule, now = new Date()) => ({
+  ...(isLocked(capsule, now) ? toLockedView(capsule) : toPublicView(capsule)),
+  isOwner: false,
+});
+
 const OWNER_FIELDS = {
   id: true,
   title: true,
@@ -46,6 +54,7 @@ const OWNER_FIELDS = {
   isPublic: true,
   slug: true,
   recipientEmail: true,
+  createdAt: true,
 };
 
 // The owner's capsules, soonest unlock first, with locked messages replaced by null.
@@ -62,6 +71,7 @@ async function listCapsulesForOwner(ownerId, now = new Date()) {
     isPublic: c.isPublic,
     slug: c.slug,
     recipientEmail: c.recipientEmail,
+    createdAt: c.createdAt,
     message: isLocked(c, now) ? null : c.message,
   }));
 }
@@ -85,9 +95,9 @@ async function deleteOwnedCapsule(id, ownerId) {
 module.exports = {
   isLocked,
   toLockedView,
-  toOwnerLockedView,
-  toUnlockedView,
   toPublicView,
+  toOwnerView,
+  toVisitorView,
   listCapsulesForOwner,
   createCapsule,
   findCapsuleBySlug,

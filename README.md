@@ -60,9 +60,11 @@ them: account emails (links, notices) take at most half of a day, capsule emails
 emails at most a quarter, and one address gets at most 3 account emails an hour. When the day's account emails are
 used up, signups and password reset requests answer 503 until midnight UTC; capsule emails wait for the next run.
 
-**Locked capsules.** Until its unlock date, a capsule answers `{ "status": "locked", "unlocksAt": "..." }`, and its
-owner also gets `capsule: { id, title, unlockDate }`. The message is never sent before the unlock date, not even to
-the owner. After it: `{ "status": "unlocked", "capsule": { ... } }`.
+**Locked capsules.** Until its unlock date, a capsule answers `{ "status": "locked", "unlocksAt": "..." }`; after
+it, `{ "status": "unlocked", "capsule": { ... } }`. The message is never sent before the unlock date, not even to the
+owner. `GET /capsules/slug/:slug` also says `isOwner`: its owner gets everything they set (`id`, `title`,
+`unlockDate`, `isPublic`, `slug`, `recipientEmail`, `createdAt`, and `message` once it unlocks), anyone else what the
+share page shows (`title`, `message`, `unlockDate`, `createdAt`, once it unlocks).
 
 **Input rules.** Email: a valid address of at most 254 characters (case and surrounding spaces don't matter).
 Password: at least 8 characters and at most 72 bytes. Title: up to 200 characters; message: up to 10,000.

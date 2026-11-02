@@ -44,11 +44,9 @@ router.get("/slug/:slug", authenticate, async (req, res) => {
 
   if (!capsule || !canView(capsule, req.user)) throw capsuleNotFound();
 
-  if (capsules.isLocked(capsule)) {
-    const isOwner = capsule.ownerId === req.user.id;
-    return res.json(isOwner ? capsules.toOwnerLockedView(capsule) : capsules.toLockedView(capsule));
-  }
-  res.json(capsules.toUnlockedView(capsule));
+  // isOwner tells the client whether to offer the owner's actions (Delete).
+  const isOwner = capsule.ownerId === req.user.id;
+  res.json(isOwner ? capsules.toOwnerView(capsule) : capsules.toVisitorView(capsule));
 });
 
 router.delete("/:id", authenticate, async (req, res) => {
