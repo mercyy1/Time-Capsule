@@ -20,7 +20,7 @@ test("applies defaults for the optional variables", () => {
     ...valid,
     NODE_ENV: "development",
     PORT: 5000,
-    CLIENT_ORIGIN: "http://localhost:3000",
+    CLIENT_ORIGIN: ["http://localhost:3000"],
   });
 });
 
@@ -35,8 +35,21 @@ test("reads every variable and turns PORT into a number", () => {
   expect(env).toMatchObject({
     NODE_ENV: "production",
     PORT: 8080,
-    CLIENT_ORIGIN: "https://timecapsule.example",
+    CLIENT_ORIGIN: ["https://timecapsule.example"],
   });
+});
+
+test("reads several client origins separated by commas, spaces allowed", () => {
+  const env = parseEnv({
+    ...valid,
+    CLIENT_ORIGIN: "https://timecapsule.example, https://timecapsule.pages.dev",
+  });
+
+  expect(env.CLIENT_ORIGIN).toEqual([
+    "https://timecapsule.example",
+    "https://timecapsule.pages.dev",
+  ]);
+  expect(Object.isFrozen(env.CLIENT_ORIGIN)).toBe(true);
 });
 
 test("ignores variables it doesn't know", () => {
@@ -62,7 +75,7 @@ test("treats an empty value as not set", () => {
 
   expect(parseEnv({ ...valid, PORT: "", CLIENT_ORIGIN: "" })).toMatchObject({
     PORT: 5000,
-    CLIENT_ORIGIN: "http://localhost:3000",
+    CLIENT_ORIGIN: ["http://localhost:3000"],
   });
 });
 
@@ -98,7 +111,9 @@ test.each([
   "https://timecapsule.example/",
   "https://timecapsule.example/app",
   "timecapsule.example",
-])("rejects a CLIENT_ORIGIN that isn't a bare origin: %s", (origin) => {
+  "https://timecapsule.example, https://timecapsule.pages.dev/",
+  "https://timecapsule.example,",
+])("rejects a CLIENT_ORIGIN that isn't a bare origin (or a list of them): %s", (origin) => {
   expect(errorFor({ ...valid, CLIENT_ORIGIN: origin }).message).toMatch(
     /CLIENT_ORIGIN must be an origin/,
   );

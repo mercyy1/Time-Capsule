@@ -1,5 +1,5 @@
 const request = require("supertest");
-const { app, prisma } = require("./helpers/app");
+const { app, buildApp, prisma } = require("./helpers/app");
 
 afterAll(() => prisma.$disconnect());
 
@@ -24,5 +24,53 @@ describe("security headers", () => {
     const res = await request(app).get("/");
 
     expect(res.headers).not.toHaveProperty("x-powered-by");
+  });
+});
+
+describe("CORS", () => {
+  const SITE = "https://timecapsule.example";
+  const PAGES = "https://timecapsule.pages.dev";
+  const twoSites = buildApp({ clientOrigins: [SITE, PAGES] });
+
+  test.each([SITE, PAGES])("echoes an allowed origin: %s", async (origin) => {
+    const res = await request(twoSites).get("/").set("Origin", origin);
+
+    expect(res.headers["access-control-allow-origin"]).toBe(origin);
+    // Tells caches the answer depends on the Origin header.
+    expect(res.headers.vary).toMatch(/\bOrigin\b/);
+  });
+
+  test("gives any other origin no CORS header, so browsers block the call", async () => {
+    const res = await request(twoSites).get("/").set("Origin", "https://evil.example");
+
+    expect(res.headers).not.toHaveProperty("access-control-allow-origin");
+  });
+
+  test("answers the browser's preflight for an allowed origin", async () => {
+    const res = await request(twoSites)
+      .options("/capsules")
+      .set("Origin", SITE)
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "authorization,content-type");
+
+    expect(res.status).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe(SITE);
+    expect(res.headers["access-control-allow-methods"]).toMatch(/\bPOST\b/);
+    expect(res.headers["access-control-allow-headers"]).toMatch(/authorization/i);
+  });
+
+  test("refuses the preflight of any other origin", async () => {
+    const res = await request(twoSites)
+      .options("/capsules")
+      .set("Origin", "https://evil.example")
+      .set("Access-Control-Request-Method", "POST");
+
+    expect(res.headers).not.toHaveProperty("access-control-allow-origin");
+  });
+
+  test("allows CLIENT_ORIGIN when no list is given", async () => {
+    const res = await request(app).get("/").set("Origin", "http://localhost:3000");
+
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
   });
 });

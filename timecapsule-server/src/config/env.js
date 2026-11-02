@@ -7,6 +7,9 @@ const { z } = require("zod");
 const SECRET_HINT =
   "Generate one with: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"";
 const PORT_ERROR = "must be a whole number from 1 to 65535";
+const ORIGIN_ERROR =
+  "must be an origin like https://example.com (no path, no trailing slash), " +
+  "or several separated by commas";
 const DEFAULT_CLIENT_ORIGIN = "http://localhost:3000";
 
 // Browsers send the page's origin (scheme, host and port, e.g. https://example.com)
@@ -34,11 +37,13 @@ const shape = {
   JWT_SECRET: z
     .string({ error: `is required. ${SECRET_HINT}` })
     .min(32, { error: `must be at least 32 characters. ${SECRET_HINT}` }),
+  // The web client's origin, or several separated by commas (for example the
+  // site's own domain and its pages.dev address). Read as a list.
   CLIENT_ORIGIN: z
     .string()
-    .refine(isOrigin, {
-      error: "must be an origin like https://example.com (no path, no trailing slash)",
-    })
+    .transform((value) => value.split(",").map((origin) => origin.trim()))
+    .refine((origins) => origins.every(isOrigin), { error: ORIGIN_ERROR })
+    .transform((origins) => Object.freeze(origins))
     .optional(),
 };
 
@@ -49,7 +54,10 @@ const schema = z
     path: ["CLIENT_ORIGIN"],
     when: () => true, // report it together with any other problems
   })
-  .transform((env) => ({ ...env, CLIENT_ORIGIN: env.CLIENT_ORIGIN ?? DEFAULT_CLIENT_ORIGIN }));
+  .transform((env) => ({
+    ...env,
+    CLIENT_ORIGIN: env.CLIENT_ORIGIN ?? Object.freeze([DEFAULT_CLIENT_ORIGIN]),
+  }));
 
 class EnvError extends Error {
   constructor(issues) {
