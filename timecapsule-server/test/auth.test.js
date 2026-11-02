@@ -171,15 +171,21 @@ describe("POST /login", () => {
     expect(verify(res.body.token)).toMatchObject({ id: user.id, email: "ada@example.com" });
   });
 
-  test("rejects a wrong password with 400", async () => {
+  const INVALID_CREDENTIALS = {
+    error: "Incorrect email or password",
+    code: "INVALID_CREDENTIALS",
+  };
+
+  test("rejects a wrong password with 401", async () => {
     await signUp("ada@example.com", "password123");
 
     const res = await request(app)
       .post("/login")
       .send({ email: "ada@example.com", password: "wrong-password" });
 
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
+    expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toBe("Bearer");
+    expect(res.body).toEqual(INVALID_CREDENTIALS);
   });
 
   test("gives an unknown email the same answer as a wrong password", async () => {
@@ -187,8 +193,8 @@ describe("POST /login", () => {
       .post("/login")
       .send({ email: "nobody@example.com", password: "password123" });
 
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(INVALID_CREDENTIALS);
   });
 
   test("rejects missing fields with 400", async () => {
@@ -215,50 +221,60 @@ describe("POST /login", () => {
 });
 
 describe("token check on protected routes", () => {
+  const INVALID_TOKEN = { error: "Invalid token", code: "INVALID_TOKEN" };
+  const get = (authorization) => request(app).get("/capsules").set("Authorization", authorization);
+
   test("401 without an Authorization header", async () => {
     const res = await request(app).get("/capsules");
 
     expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toBe("Bearer");
     expect(res.body).toEqual({ error: "No token provided", code: "AUTH_REQUIRED" });
   });
 
   test("401 when the header has no token after the scheme", async () => {
-    const res = await request(app).get("/capsules").set("Authorization", "Bearer");
+    const res = await get("Bearer");
 
     expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toBe('Bearer error="invalid_request"');
     expect(res.body).toEqual({ error: "Malformed token", code: "AUTH_REQUIRED" });
   });
 
-  test("403 for a token that isn't a valid JWT", async () => {
-    const res = await request(app).get("/capsules").set("Authorization", "Bearer not-a-real-token");
+  test("401 (was 403) for a token that isn't a valid JWT", async () => {
+    const res = await get("Bearer not-a-real-token");
 
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Invalid token", code: "INVALID_TOKEN" });
+    expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toBe('Bearer error="invalid_token"');
+    expect(res.body).toEqual(INVALID_TOKEN);
   });
 
-  test("403 for an expired token", async () => {
+  test("401 TOKEN_EXPIRED (was 403) for an expired token", async () => {
     const { user } = await signUp();
     const expired = jwt.sign(
       { id: user.id, email: user.email, exp: Math.floor(Date.now() / 1000) - 60 },
       process.env.JWT_SECRET,
     );
 
-    const res = await request(app).get("/capsules").set("Authorization", `Bearer ${expired}`);
+    const res = await get(`Bearer ${expired}`);
 
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Invalid token", code: "INVALID_TOKEN" });
+    expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toMatch(/^Bearer error="invalid_token"/);
+    expect(res.body).toEqual({
+      error: "Your session has expired. Please log in again.",
+      code: "TOKEN_EXPIRED",
+    });
   });
 
-  test("403 for a token signed with a different secret", async () => {
+  test("401 (was 403) for a token signed with a different secret", async () => {
     const { user } = await signUp();
     const forged = jwt.sign(
       { id: user.id, email: user.email },
       "some-other-secret-at-least-32-chars-long",
     );
 
-    const res = await request(app).get("/capsules").set("Authorization", `Bearer ${forged}`);
+    const res = await get(`Bearer ${forged}`);
 
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Invalid token", code: "INVALID_TOKEN" });
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(INVALID_TOKEN);
   });
 });

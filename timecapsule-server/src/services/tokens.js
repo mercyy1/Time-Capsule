@@ -10,13 +10,14 @@ function generateAccessToken(user) {
   });
 }
 
-// The token's payload ({ id, email, iat, exp }), or null if the token is
-// invalid, expired or signed with another secret.
+// Checks a token. Returns { payload } ({ id, email, iat, exp }) if it is valid,
+// otherwise { problem: "expired" } for a token that was valid but ran out, or
+// { problem: "invalid" } for anything else (garbage, another secret, tampered).
 function verifyAccessToken(token) {
   try {
-    return jwt.verify(token, getEnv().JWT_SECRET);
-  } catch {
-    return null;
+    return { payload: jwt.verify(token, getEnv().JWT_SECRET) };
+  } catch (err) {
+    return { problem: err instanceof jwt.TokenExpiredError ? "expired" : "invalid" };
   }
 }
 
