@@ -1,3 +1,4 @@
+const { randomUUID } = require("node:crypto");
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../db");
@@ -25,7 +26,21 @@ async function createUser(email, password) {
   }
 }
 
-const passwordMatches = (user, password) => bcrypt.compare(password, user.password);
+// A hash of a random password nobody knows, made with the same cost as real
+// ones. Made once, in the background, when the server starts.
+const dummyHash = bcrypt.hash(randomUUID(), BCRYPT_ROUNDS);
+// Avoids an "unhandled rejection" crash if it ever failed; a login that needs it
+// would still see the error.
+dummyHash.catch(() => {});
+
+// Checks a login password. Without a user (the email has no account) it still
+// does a full bcrypt comparison, against the dummy hash, and returns false: a
+// login for an unknown email then takes as long as one with a wrong password,
+// so response times don't reveal which emails have accounts.
+async function passwordMatches(user, password) {
+  const matches = await bcrypt.compare(password, user ? user.password : await dummyHash);
+  return Boolean(user) && matches;
+}
 
 // The only user fields the API ever returns.
 const toPublicUser = (user) => ({ id: user.id, email: user.email });

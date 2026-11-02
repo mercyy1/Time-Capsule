@@ -209,7 +209,25 @@ describe("POST /login", () => {
       .send({ email: "nobody@example.com", password: "password123" });
 
     expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toBe("Bearer");
     expect(res.body).toEqual(INVALID_CREDENTIALS);
+  });
+
+  test("checks a password for an unknown email too, so it takes as long as a wrong password", async () => {
+    const { user } = await signUp("ada@example.com", "password123");
+    const stored = await prisma.user.findUnique({ where: { id: user.id } });
+    const compare = jest.spyOn(bcrypt, "compare");
+
+    const res = await request(app)
+      .post("/login")
+      .send({ email: "nobody@example.com", password: "password123" });
+
+    expect(res.status).toBe(401);
+    expect(compare).toHaveBeenCalledTimes(1);
+    // Against a hash as costly as a real one.
+    const [, hash] = compare.mock.calls[0];
+    expect(bcrypt.getRounds(hash)).toBe(bcrypt.getRounds(stored.password));
+    compare.mockRestore();
   });
 
   test("rejects missing fields with 400", async () => {

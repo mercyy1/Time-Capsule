@@ -27,8 +27,7 @@ router.post("/login", async (req, res) => {
   const { email, password } = parse(loginBody, req.body);
 
   const user = await findUserByEmail(email);
-  if (!user) throw invalidCredentials();
-
+  // Called even when there is no such user, so both failures take as long.
   const validPassword = await passwordMatches(user, password);
   if (!validPassword) throw invalidCredentials();
 
