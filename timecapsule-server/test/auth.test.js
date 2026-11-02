@@ -237,7 +237,54 @@ describe("token check on protected routes", () => {
 
     expect(res.status).toBe(401);
     expect(res.headers["www-authenticate"]).toBe('Bearer error="invalid_request"');
-    expect(res.body).toEqual({ error: "Malformed token", code: "AUTH_REQUIRED" });
+    expect(res.body).toEqual({
+      error: "The Authorization header must be: Bearer <token>",
+      code: "AUTH_REQUIRED",
+    });
+  });
+
+  test.each([
+    ["the Basic scheme (was accepted)", (token) => `Basic ${token}`],
+    ["a token with no scheme", (token) => token],
+    ["extra text after the token", (token) => `Bearer ${token} extra`],
+  ])("401 for %s", async (_case, header) => {
+    const { token } = await signUp();
+
+    const res = await get(header(token));
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("AUTH_REQUIRED");
+  });
+
+  test("accepts the scheme name in any case, as HTTP allows", async () => {
+    const { token } = await signUp();
+
+    const res = await get(`bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  test("401 for a token signed with HS512, even with the right secret (was accepted)", async () => {
+    const { user } = await signUp();
+    const hs512 = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, {
+      algorithm: "HS512",
+    });
+
+    const res = await get(`Bearer ${hs512}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(INVALID_TOKEN);
+  });
+
+  test('401 for an unsigned token (alg "none")', async () => {
+    const { user } = await signUp();
+    const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+    const unsigned = `${encode({ alg: "none", typ: "JWT" })}.${encode({ id: user.id })}.`;
+
+    const res = await get(`Bearer ${unsigned}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(INVALID_TOKEN);
   });
 
   test("401 (was 403) for a token that isn't a valid JWT", async () => {

@@ -4,8 +4,14 @@
 const jwt = require("jsonwebtoken");
 const { getEnv } = require("../config/env");
 
+// The one signing algorithm we use. jwt.verify would otherwise accept any HMAC
+// variant (HS384, HS512) signed with the secret; pinning it means a token is
+// only ever checked the way it was made.
+const ALGORITHM = "HS256";
+
 function generateAccessToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, getEnv().JWT_SECRET, {
+    algorithm: ALGORITHM,
     expiresIn: "1d",
   });
 }
@@ -15,7 +21,7 @@ function generateAccessToken(user) {
 // { problem: "invalid" } for anything else (garbage, another secret, tampered).
 function verifyAccessToken(token) {
   try {
-    return { payload: jwt.verify(token, getEnv().JWT_SECRET) };
+    return { payload: jwt.verify(token, getEnv().JWT_SECRET, { algorithms: [ALGORITHM] }) };
   } catch (err) {
     return { problem: err instanceof jwt.TokenExpiredError ? "expired" : "invalid" };
   }

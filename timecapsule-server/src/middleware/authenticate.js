@@ -6,15 +6,25 @@ const { verifyAccessToken } = require("../services/tokens");
 const unauthorized = (code, message, challenge) =>
   new HttpError(401, code, message, { headers: { "WWW-Authenticate": challenge } });
 
+// "Bearer <token>". The scheme name is case-insensitive in HTTP; a token never
+// contains spaces.
+const BEARER = /^Bearer +(\S+)$/i;
+
 // Requires an "Authorization: Bearer <token>" header and puts the token's
 // payload ({ id, email }) on req.user for the route.
 function authenticate(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return next(unauthorized("AUTH_REQUIRED", "No token provided", "Bearer"));
 
-  const token = authHeader.split(" ")[1];
+  const token = BEARER.exec(authHeader)?.[1];
   if (!token) {
-    return next(unauthorized("AUTH_REQUIRED", "Malformed token", 'Bearer error="invalid_request"'));
+    return next(
+      unauthorized(
+        "AUTH_REQUIRED",
+        "The Authorization header must be: Bearer <token>",
+        'Bearer error="invalid_request"',
+      ),
+    );
   }
 
   const { payload, problem } = verifyAccessToken(token);
