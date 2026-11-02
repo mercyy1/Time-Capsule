@@ -1,0 +1,128 @@
+# Checks every pull request, and every push to main: each package's lint and
+# formatting, the API's tests, the web client's production build, and the
+# end-to-end tests. Render deploys main only once these pass (render.yaml).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch or pull request cancels the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      # The same PostgreSQL as docker-compose.yml, with the tests' database.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: timecapsule
+          POSTGRES_PASSWORD: timecapsule
+          POSTGRES_DB: timecapsule_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U timecapsule"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: timecapsule-server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: timecapsule-server/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+
+  web:
+    name: Web client
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: timecapsule-client
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: timecapsule-client/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      # The build needs an API address; this one is never called.
+      - run: npm run build
+        env:
+          VITE_API_URL: https://api.example.com
+          VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+
+  e2e:
+    name: End to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: timecapsule
+          POSTGRES_PASSWORD: timecapsule
+          POSTGRES_DB: timecapsule_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U timecapsule"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            timecapsule-server/package-lock.json
+            timecapsule-client/package-lock.json
+            e2e/package-lock.json
+      # The tests start the real API and build the real client.
+      - run: npm ci
+        working-directory: timecapsule-server
+      - run: npm ci
+        working-directory: timecapsule-client
+      - run: npm ci
+        working-directory: e2e
+      - run: npm run lint
+        working-directory: e2e
+      - run: npm run format:check
+        working-directory: e2e
+      # GitHub's Ubuntu runners come with Google Chrome, which the tests use
+      # (channel: "chrome"), so no browser is downloaded.
+      - run: google-chrome --version
+      - run: npx playwright test
+        working-directory: e2e
+      # What failed, with a trace of each failed test: download it from the
+      # run's summary page and open it with `npx playwright show-report`.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
