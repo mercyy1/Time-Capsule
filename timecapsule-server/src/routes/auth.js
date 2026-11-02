@@ -1,7 +1,13 @@
 const express = require("express");
 const { HttpError } = require("../errors");
 const { parse } = require("../validation");
-const { signupBody, loginBody, verifyEmailBody } = require("../schemas");
+const {
+  signupBody,
+  loginBody,
+  verifyEmailBody,
+  forgotPasswordBody,
+  resetPasswordBody,
+} = require("../schemas");
 const { findUserByEmail, passwordMatches, toPublicUser } = require("../services/users");
 const { generateAccessToken } = require("../services/tokens");
 const { secondsUntilNextUtcDay } = require("../email/sender");
@@ -80,6 +86,34 @@ function createAuthRouter({ accounts, sender, tasks }) {
       );
     }
 
+    res.json({ token: generateAccessToken(user), user: toPublicUser(user) });
+  });
+
+  router.post("/forgot-password", async (req, res) => {
+    const { email } = parse(forgotPasswordBody, req.body);
+    await refuseWhenOutOfEmails();
+
+    // After responding, like signup: the answer, and the time it takes, are the
+    // same whether or not the address has an account.
+    tasks.run("send a password reset link", () => accounts.requestPasswordReset(email));
+    res.status(202).json({
+      message: `If ${email} has an account, we've emailed it a link to choose a new password. The link works for 1 hour.`,
+    });
+  });
+
+  router.post("/reset-password", async (req, res) => {
+    const { token, password } = parse(resetPasswordBody, req.body);
+
+    const user = await accounts.resetPassword(token, password);
+    if (!user) {
+      throw new HttpError(
+        400,
+        "INVALID_LINK",
+        "This password reset link is invalid or has expired. Ask for a new one.",
+      );
+    }
+    // The link proved who is asking, so this logs them in, with a token of the
+    // new version.
     res.json({ token: generateAccessToken(user), user: toPublicUser(user) });
   });
 

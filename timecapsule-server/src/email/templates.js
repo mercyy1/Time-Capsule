@@ -38,4 +38,19 @@ function accountExists({ appUrl }) {
   };
 }
 
-module.exports = { confirmEmail, accountExists };
+// After "Forgot your password?": a link to choose a new one.
+function resetPassword({ link }) {
+  return {
+    subject: "Reset your TimeCapsule password",
+    text: lines(
+      "Someone, probably you, asked to reset the password of your TimeCapsule account.",
+      "",
+      "Choose a new password:",
+      link,
+      "",
+      "The link works once, for 1 hour. If you didn't ask, you can ignore this email: your password hasn't changed.",
+    ),
+  };
+}
+
+module.exports = { confirmEmail, accountExists, resetPassword };

@@ -60,9 +60,10 @@ function createApp({
   // Health check
   app.get("/", (req, res) => res.send("Time Capsule API"));
 
-  app.post(["/signup", "/verify-email"], limiters.auth);
+  app.post(["/signup", "/verify-email", "/forgot-password", "/reset-password"], limiters.auth);
   app.post("/login", limiters.auth, limiters.failedLogins);
-  app.use(createAuthRouter({ accounts, sender, tasks })); // signup, verify-email, login
+  // signup, verify-email, login, forgot-password, reset-password
+  app.use(createAuthRouter({ accounts, sender, tasks }));
   app.use("/capsules", capsuleRoutes);
 
   app.use(notFound);

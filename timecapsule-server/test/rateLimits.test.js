@@ -45,7 +45,7 @@ describe("signups and logins", () => {
 
     expect(res.status).toBe(429);
     expect(res.body).toEqual({
-      error: "Too many sign-up and login attempts. Try again in 15 minutes.",
+      error: "Too many sign-up, login and password reset attempts. Try again in 15 minutes.",
       code: "RATE_LIMITED",
     });
     // Seconds until the count resets, 15 minutes after the first attempt.
@@ -67,16 +67,22 @@ describe("signups and logins", () => {
     expect(res.status).toBe(200);
   });
 
-  test("confirming an address counts toward the same limit", async () => {
+  test.each([
+    ["confirming an address", "/verify-email", { token: "A".repeat(43) }, 400],
+    ["asking for a password reset", "/forgot-password", { email: "ada@example.com" }, 202],
+    [
+      "resetting a password",
+      "/reset-password",
+      { token: "A".repeat(43), password: "password123" },
+      400,
+    ],
+  ])("%s counts toward the same limit", async (_case, path, body, status) => {
     const app = buildApp({ rateLimits: limitsWith({ auth: 2 }) });
-    const confirm = () =>
-      request(app)
-        .post("/verify-email")
-        .send({ token: "A".repeat(43) });
-    expect((await confirm()).status).toBe(400);
-    expect((await confirm()).status).toBe(400);
+    const send = () => request(app).post(path).send(body);
+    expect((await send()).status).toBe(status);
+    expect((await send()).status).toBe(status);
 
-    const res = await confirm();
+    const res = await send();
 
     expect(res.status).toBe(429);
     expect(res.body.code).toBe("RATE_LIMITED");

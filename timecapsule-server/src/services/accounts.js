@@ -1,5 +1,5 @@
-// The account flows that go through email: signing up and confirming the
-// address.
+// The account flows that go through email: signing up, confirming the address,
+// and resetting a forgotten password.
 const { prisma } = require("../db");
 const templates = require("../email/templates");
 const { createUser, findUserByEmail, hashPassword } = require("./users");
@@ -106,7 +106,69 @@ function createAccounts({ sender, appUrl }) {
     return user?.emailVerifiedAt ? user : null;
   }
 
-  return { signUp, sendConfirmation, confirmEmail };
+  // "Forgot your password?", after the response was sent: emails the account a
+  // link to choose a new password. An address with no account gets nothing (the
+  // answer was the same), and neither does one past a sending limit. Links don't
+  // replace each other: each works once, for an hour, until one of them is used.
+  async function requestPasswordReset(email) {
+    const user = await findUserByEmail(email);
+    if (!user) return;
+    const { slot } = await sender.reserve({
+      kind: "RESET_PASSWORD",
+      address: user.email,
+      userId: user.id,
+    });
+    if (!slot) return;
+
+    const { token, record } = await createAuthToken({ kind: "RESET_PASSWORD", userId: user.id });
+    const { sent } = await sender.deliver(
+      slot,
+      templates.resetPassword({ link: `${appUrl}/reset-password#token=${token}` }),
+    );
+    // A link that may not have reached anyone shouldn't stay usable.
+    if (!sent) await deleteAuthToken(record.id);
+  }
+
+  // Sets a new password from a reset link. Returns the user, or null if the link
+  // doesn't work: unknown, expired or already used. Afterwards the account's
+  // links (this one included) stop working, and so does every login token made
+  // before, wherever it is: the token version goes up. The link reached the
+  // address's inbox, so it also confirms the address, which ends any signup a
+  // stranger started with it (their password is gone, their links too).
+  async function resetPassword(token, password) {
+    const link = await findAuthToken("RESET_PASSWORD", token);
+    if (!link || link.usedAt || link.expiresAt <= new Date()) return null;
+
+    // Hashed before the transaction, which then stays short (bcrypt takes a while).
+    const passwordHash = await hashPassword(password);
+    const now = new Date();
+    const reset = await prisma.$transaction(async (tx) => {
+      // Takes the link, unless another request took it a moment ago (or it just
+      // expired).
+      const taken = await tx.authToken.updateMany({
+        where: { id: link.id, usedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      if (taken.count === 0) return false;
+      await tx.user.updateMany({
+        where: { id: link.userId },
+        data: { password: passwordHash, tokenVersion: { increment: 1 } },
+      });
+      await tx.user.updateMany({
+        where: { id: link.userId, emailVerifiedAt: null },
+        data: { emailVerifiedAt: now },
+      });
+      await tx.authToken.updateMany({
+        where: { userId: link.userId, usedAt: null },
+        data: { usedAt: now },
+      });
+      return true;
+    });
+
+    return reset ? prisma.user.findUnique({ where: { id: link.userId } }) : null;
+  }
+
+  return { signUp, sendConfirmation, confirmEmail, requestPasswordReset, resetPassword };
 }
 
 module.exports = { createAccounts };

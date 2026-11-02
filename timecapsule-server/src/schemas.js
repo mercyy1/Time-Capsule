@@ -52,6 +52,10 @@ const linkToken = z.string(text("Token")).max(100, { error: "Token is too long" 
 
 const verifyEmailBody = body({ token: linkToken });
 
+const forgotPasswordBody = body({ email });
+
+const resetPasswordBody = body({ token: linkToken, password: newPassword });
+
 const yearsFromNow = (years) => {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() + years);
@@ -113,6 +117,8 @@ module.exports = {
   signupBody,
   loginBody,
   verifyEmailBody,
+  forgotPasswordBody,
+  resetPasswordBody,
   newCapsuleBody,
   capsuleIdParams,
   isSlug,
