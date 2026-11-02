@@ -1,0 +1,9 @@
+node_modules/
+# Made by every run.
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# The client built for the tests, and the emails the test API "sent".
+/.client/
+/.outbox/

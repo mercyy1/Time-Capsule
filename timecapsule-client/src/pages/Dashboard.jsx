@@ -1,122 +1,222 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../api";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { errorMessage } from "../apiErrors";
+import CopyLinkButton from "../components/CopyLinkButton";
+import Notice from "../components/Notice";
+import Stamp from "../components/Stamp";
+import { capsulePath, shareUrl } from "../links";
+import { formatDay, formatShortDateTime, timeLeft } from "../time";
+import useFlashNotice from "../useFlashNotice";
+import useNow from "../useNow";
+import usePageTitle from "../usePageTitle";
+
+// Each card is one link (its title) stretched over the whole card, so the card
+// is a single stop for the keyboard and a single target for a click; its other
+// controls sit above the stretched part. The card shows the link's focus.
+const CARD =
+  "relative flex flex-col has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-airmail-blue";
+const CARD_LINK = "after:absolute after:inset-0 focus-visible:outline-none hover:underline";
 
 export default function Dashboard() {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-  const [capsules, setCapsules] = useState([]);
-  const [loading, setLoading] = useState(true);
+  usePageTitle("Your capsules");
+  const notice = useFlashNotice();
+  // The stamps count down in whole minutes.
+  const now = useNow(60_000);
+  const [state, setState] = useState({ phase: "loading" });
   const [search, setSearch] = useState("");
+  const searchId = useId();
 
-  useEffect(() => {
-    async function fetchCapsules() {
-      try {
-        const res = await api.get("/capsules");
-        setCapsules(res.data);
-      } catch (err) {
-        // 401: the session ended, and AuthProvider is taking the user to log in.
-        if (err.response?.status !== 401) alert("Failed to load capsules");
-      }
-      setLoading(false);
-    }
-    fetchCapsules();
-  }, []);
-
-  function handleLogout() {
-    logout();
-    navigate("/login");
-  }
-
-  const filteredCapsules = capsules.filter((c) =>
-    c.title?.toLowerCase().includes(search.toLowerCase()),
+  // A 401 doesn't land here as an error: the session ended, and AuthProvider
+  // sends the user to log in.
+  const load = useCallback(
+    () =>
+      api.get("/capsules").then(
+        (res) => setState({ phase: "ready", capsules: res.data }),
+        (err) => setState({ phase: "failed", error: errorMessage(err) }),
+      ),
+    [],
   );
 
-  return (
-    <div className="max-w-3xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Your Time Capsules</h1>
-        <button onClick={handleLogout} className="btn btn-primary px-3 py-1" title="Logout">
-          Logout
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const capsules = state.capsules ?? [];
+  const query = search.trim().toLowerCase();
+  const shown = capsules.filter((c) => c.title.toLowerCase().includes(query));
+  // The API hides the message of a sealed capsule, and sends them soonest first.
+  const sealed = shown.filter((c) => c.message === null);
+  const opened = shown.filter((c) => c.message !== null).reverse();
+
+  let content;
+  if (state.phase === "loading") {
+    content = (
+      <p role="status" className="mt-10 text-slate">
+        Loading your capsules…
+      </p>
+    );
+  } else if (state.phase === "failed") {
+    content = (
+      <div className="mt-8">
+        <Notice tone="error">Couldn't load your capsules. {state.error}</Notice>
+        <button
+          type="button"
+          className="btn btn-secondary mt-4"
+          onClick={() => {
+            setState({ phase: "loading" });
+            load();
+          }}
+        >
+          Try again
         </button>
       </div>
-
-      <div className="mb-4 flex space-x-2">
-        <input
-          type="text"
-          placeholder="Search capsules..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input"
-        />
-        <Link to="/create" className="btn btn-primary whitespace-nowrap">
-          + New Capsule
-        </Link>
+    );
+  } else if (capsules.length === 0) {
+    content = <EmptyState />;
+  } else if (shown.length === 0) {
+    content = (
+      <div className="mt-10" role="status">
+        <p>No capsule titles match “{search.trim()}”.</p>
+        <button type="button" className="link mt-2" onClick={() => setSearch("")}>
+          Clear the search
+        </button>
       </div>
+    );
+  } else {
+    content = (
+      <>
+        {sealed.length > 0 && (
+          <section aria-labelledby="sealed" className="mt-10">
+            <h2 id="sealed" className="display text-xl">
+              Sealed
+            </h2>
+            <ul className="mt-4 grid gap-6 md:grid-cols-2">
+              {sealed.map((capsule) => (
+                <EnvelopeCard key={capsule.id} capsule={capsule} now={now} />
+              ))}
+            </ul>
+          </section>
+        )}
+        {opened.length > 0 && (
+          <section aria-labelledby="opened" className="mt-12">
+            <h2 id="opened" className="display text-xl">
+              Opened
+            </h2>
+            <ul className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {opened.map((capsule) => (
+                <LetterCard key={capsule.id} capsule={capsule} />
+              ))}
+            </ul>
+          </section>
+        )}
+      </>
+    );
+  }
 
-      {loading ? (
-        <p>Loading capsules...</p>
-      ) : filteredCapsules.length === 0 ? (
-        <p>No capsules found.</p>
-      ) : (
-        filteredCapsules.map((c) => {
-          const isUnlocked = new Date(c.unlockDate) <= new Date();
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+        <h1 className="display text-3xl sm:text-4xl">Your capsules</h1>
+        {capsules.length > 0 && (
+          <div className="w-full sm:w-72">
+            <label htmlFor={searchId} className="mb-1.5 block text-sm font-semibold">
+              Find a capsule by its title
+            </label>
+            <input
+              id={searchId}
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="field-input"
+            />
+          </div>
+        )}
+      </div>
+      {notice && (
+        <Notice tone="success" className="mt-6">
+          {notice}
+        </Notice>
+      )}
+      {content}
+    </div>
+  );
+}
 
-          return (
-            <div
-              key={c.id}
-              className="border rounded p-4 mb-4 bg-white shadow cursor-pointer hover:bg-gray-50"
-              //   onClick={() => navigate(`/capsule/${c.slug || c.id}`)}
-              onClick={() =>
-                c.isPublic
-                  ? window.open(`/public/${c.slug}`, "_blank")
-                  : navigate(`/capsule/${c.slug}`)
-              }
-            >
-              <h3 className="text-xl font-semibold mb-2">{c.title}</h3>
+function EmptyState() {
+  return (
+    <div className="mt-10 rounded-[3px] border-2 border-dashed border-rule px-6 py-12 text-center sm:py-16">
+      <h2 className="display text-xl">Nothing sealed yet</h2>
+      <p className="mx-auto mt-2 max-w-md text-slate">
+        Write a message for a day you choose: a birthday, a graduation, next New Year's Eve. It
+        stays sealed until then.
+      </p>
+      <Link to="/create" className="btn btn-primary mt-6">
+        Write your first capsule
+      </Link>
+    </div>
+  );
+}
 
-              <p className="text-sm text-gray-600 mb-2">
-                Unlocks at: {new Date(c.unlockDate).toLocaleString()}
-              </p>
+// A sealed capsule: an envelope, its stamp showing the time left.
+function EnvelopeCard({ capsule, now }) {
+  const due = timeLeft(capsule.unlockDate, now).total === 0;
+  return (
+    <li className={`envelope ${CARD} min-h-56 p-5 sm:p-6`}>
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm text-slate">Sealed {formatDay(capsule.createdAt)}</p>
+        <Stamp until={capsule.unlockDate} now={now} />
+      </div>
+      {/* The address: the same height on every envelope in a row. */}
+      <div className="mt-5 sm:pl-[12%]">
+        <h3 className="font-letter text-xl/snug wrap-anywhere">
+          <Link to={capsulePath(capsule.slug)} className={CARD_LINK}>
+            {capsule.title}
+          </Link>
+        </h3>
+        <p className="mt-1 text-sm text-slate">
+          {due ? "Ready to open" : `Don't open before ${formatShortDateTime(capsule.unlockDate)}`}
+        </p>
+      </div>
+      <CardFooter capsule={capsule} className="mt-auto pt-5" />
+    </li>
+  );
+}
 
-              {c.recipientEmail && (
-                <p className="text-sm text-gray-600 mb-2">
-                  Emailed to {c.recipientEmail} when it opens
-                </p>
-              )}
+// An opened capsule: a page of the letter, with the start of its message. (Its
+// fold creases are left for the full letter: on a card they'd cross the text.)
+function LetterCard({ capsule }) {
+  return (
+    <li className={`sheet ${CARD} p-5 sm:p-6`}>
+      <p className="text-sm text-slate">Opened {formatDay(capsule.unlockDate)}</p>
+      <h3 className="mt-3 font-letter text-xl/snug wrap-anywhere">
+        <Link to={capsulePath(capsule.slug)} className={CARD_LINK}>
+          {capsule.title}
+        </Link>
+      </h3>
+      <p className="mt-2 line-clamp-3 font-letter text-slate wrap-anywhere">
+        {capsule.message.slice(0, 400).replace(/\s+/g, " ")}
+      </p>
+      <CardFooter capsule={capsule} className="mt-auto pt-4" />
+    </li>
+  );
+}
 
-              {isUnlocked ? (
-                c.message ? (
-                  <p className="mb-2">
-                    {c.message.length > 100 ? c.message.slice(0, 100) + "..." : c.message}
-                  </p>
-                ) : (
-                  <p className="italic text-gray-500 mb-2">No message found.</p>
-                )
-              ) : (
-                <p className="italic text-gray-500 mb-2">This capsule is locked.</p>
-              )}
-
-              {c.isPublic && c.slug && (
-                <p
-                  className="text-blue-600 text-sm break-words"
-                  onClick={(e) => e.stopPropagation()} // prevent card click
-                >
-                  Shareable Link:{" "}
-                  <a
-                    href={`/public/${c.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    {window.location.origin}/public/{c.slug}
-                  </a>
-                </p>
-              )}
-            </div>
-          );
-        })
+function CardFooter({ capsule, className }) {
+  if (!capsule.isPublic && !capsule.recipientEmail) return null;
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-slate ${className}`}
+    >
+      <span className="wrap-anywhere">
+        {capsule.recipientEmail && `Also emailed to ${capsule.recipientEmail}`}
+      </span>
+      {capsule.isPublic && (
+        <CopyLinkButton
+          url={shareUrl(capsule.slug)}
+          keepWidth={false}
+          className="link relative z-10 font-semibold"
+        />
       )}
     </div>
   );

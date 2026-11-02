@@ -1,0 +1,26 @@
+{
+  "name": "timecapsule-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests: the web client and the API together, in Chrome",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-playwright": "^2.12.2",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10"
+  }
+}

@@ -53,9 +53,11 @@ describe("POST /capsules", () => {
       isPublic: false,
       slug: expect.stringMatching(UUID),
       recipientEmail: null,
+      createdAt: expect.any(String),
     });
     const stored = await prisma.capsule.findUnique({ where: { id: res.body.id } });
     expect(stored).toMatchObject({ ownerId: ada.user.id, notified: false, recipientEmail: null });
+    expect(res.body.createdAt).toBe(stored.createdAt.toISOString());
   });
 
   test("stores isPublic: true", async () => {
@@ -286,6 +288,7 @@ describe("GET /capsules", () => {
         isPublic: false,
         slug: unlocked.slug,
         recipientEmail: null,
+        createdAt: unlocked.createdAt.toISOString(),
         message: "hello again",
       },
       {
@@ -295,6 +298,7 @@ describe("GET /capsules", () => {
         isPublic: false,
         slug: locked.slug,
         recipientEmail: "bob@example.com",
+        createdAt: locked.createdAt,
         message: null,
       },
     ]);
@@ -316,9 +320,12 @@ describe("GET /capsules/slug/:slug", () => {
     return user ? req.set("Authorization", user.auth) : req;
   };
 
-  test("owner, locked: which capsule it is (was only the status), never the message", async () => {
+  test("owner, locked: everything they set, never the message", async () => {
     const ada = await signUp();
-    const capsule = await createCapsule(ada, { recipientEmail: "bob@example.com" });
+    const capsule = await createCapsule(ada, {
+      isPublic: true,
+      recipientEmail: "bob@example.com",
+    });
 
     const res = await open(capsule.slug, ada);
 
@@ -326,11 +333,20 @@ describe("GET /capsules/slug/:slug", () => {
     expect(res.body).toEqual({
       status: "locked",
       unlocksAt: capsule.unlockDate,
-      capsule: { id: capsule.id, title: capsule.title, unlockDate: capsule.unlockDate },
+      isOwner: true,
+      capsule: {
+        id: capsule.id,
+        title: capsule.title,
+        unlockDate: capsule.unlockDate,
+        isPublic: true,
+        slug: capsule.slug,
+        recipientEmail: "bob@example.com",
+        createdAt: capsule.createdAt,
+      },
     });
   });
 
-  test("owner, unlocked: the capsule with its message", async () => {
+  test("owner, unlocked: everything they set, with the message", async () => {
     const ada = await signUp();
     const capsule = await seedCapsule({
       ownerId: ada.user.id,
@@ -344,11 +360,16 @@ describe("GET /capsules/slug/:slug", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       status: "unlocked",
+      isOwner: true,
       capsule: {
         id: capsule.id,
         title: capsule.title,
-        message: "hello again",
         unlockDate: capsule.unlockDate.toISOString(),
+        isPublic: false,
+        slug: capsule.slug,
+        recipientEmail: "bob@example.com",
+        createdAt: capsule.createdAt.toISOString(),
+        message: "hello again",
       },
     });
   });
@@ -378,10 +399,10 @@ describe("GET /capsules/slug/:slug", () => {
     const res = await open(capsule.slug, bob);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: "locked", unlocksAt: capsule.unlockDate });
+    expect(res.body).toEqual({ status: "locked", unlocksAt: capsule.unlockDate, isOwner: false });
   });
 
-  test("stranger, public and unlocked: the capsule with its message, not who it was emailed to", async () => {
+  test("stranger, public and unlocked: what the share page shows (no id, recipient or flags)", async () => {
     const ada = await signUp();
     const bob = await signUp();
     const capsule = await seedCapsule({
@@ -397,11 +418,12 @@ describe("GET /capsules/slug/:slug", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       status: "unlocked",
+      isOwner: false,
       capsule: {
-        id: capsule.id,
         title: capsule.title,
         message: "for everyone",
         unlockDate: capsule.unlockDate.toISOString(),
+        createdAt: capsule.createdAt.toISOString(),
       },
     });
   });

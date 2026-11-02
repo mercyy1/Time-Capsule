@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- An airmail envelope with a stamp: TimeCapsule's sealed capsules. -->
+  <defs>
+    <pattern id="stripes" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="3.5" height="9" fill="#c8323b"/>
+      <rect x="4.5" width="3.5" height="9" fill="#2a4b9b"/>
+    </pattern>
+  </defs>
+  <rect x="1" y="5" width="30" height="22" rx="2" fill="#fbfcfd"/>
+  <rect x="1" y="5" width="30" height="22" rx="2" fill="url(#stripes)"/>
+  <rect x="4.5" y="8.5" width="23" height="15" fill="#fbfcfd"/>
+  <rect x="20" y="11" width="5" height="6" fill="#2a4b9b"/>
+  <rect x="7.5" y="18" width="10" height="2" fill="#1d2742"/>
+</svg>

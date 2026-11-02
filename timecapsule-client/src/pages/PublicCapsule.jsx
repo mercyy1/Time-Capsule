@@ -1,46 +1,66 @@
-import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import api from "../api";
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import CapsuleMissing from "../components/CapsuleMissing";
+import Notice from "../components/Notice";
+import OpenedLetter from "../components/OpenedLetter";
+import SealedCapsule from "../components/SealedCapsule";
+import { useAuth } from "../context/AuthContext";
+import useCapsuleView from "../useCapsuleView";
+import useNow from "../useNow";
+import usePageTitle from "../usePageTitle";
 
+// A shared capsule's public page (/public/:slug), for anyone with the link: when
+// it opens, then the letter itself. Nothing else about it is shown.
 export default function PublicCapsule() {
   const { slug } = useParams();
-  const [capsule, setCapsule] = useState(null);
-  const [status, setStatus] = useState("loading");
+  const { user } = useAuth();
+  const { phase, view, error, late, retry, open } = useCapsuleView(`/capsules/public/${slug}`);
+  const sealed = view?.status === "locked";
+  const now = useNow(sealed ? 1000 : 3_600_000);
+  const [openedHere, setOpenedHere] = useState(false);
+  usePageTitle(
+    phase === "missing"
+      ? "Capsule not found"
+      : (view?.capsule?.title ?? (sealed ? "A sealed capsule" : "")),
+  );
 
-  useEffect(() => {
-    const fetchCapsule = async () => {
-      try {
-        const res = await api.get(`/capsules/public/${slug}`);
-        if (res.data.status === "locked") {
-          setStatus("locked");
-          setCapsule(res.data);
-        } else {
-          setStatus("unlocked");
-          setCapsule(res.data.capsule);
-        }
-      } catch {
-        setStatus("error");
-      }
-    };
-    fetchCapsule();
-  }, [slug]);
-
-  if (status === "loading") return <p>Loading...</p>;
-  if (status === "error") return <p>Capsule not found.</p>;
+  if (phase === "missing") return <CapsuleMissing />;
 
   return (
-    <div className="max-w-xl mx-auto mt-10 bg-white p-6 rounded shadow">
-      {status === "locked" ? (
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      {phase === "loading" && (
+        <p role="status" className="text-slate">
+          Loading the capsule…
+        </p>
+      )}
+      {phase === "failed" && (
         <>
-          <h2 className="text-xl font-semibold">🔒 Capsule Locked</h2>
-          <p>Unlocks at: {new Date(capsule.unlocksAt).toLocaleString()}</p>
+          <Notice tone="error">Couldn't load this capsule. {error}</Notice>
+          <button type="button" className="btn btn-secondary mt-4" onClick={retry}>
+            Try again
+          </button>
         </>
-      ) : (
+      )}
+      {phase === "ready" && (
         <>
-          <h2 className="text-2xl font-bold mb-2">{capsule.title}</h2>
-          <p className="text-gray-700 whitespace-pre-line">{capsule.message}</p>
-          <p className="mt-4 text-sm text-gray-500">
-            Unlocked at: {new Date(capsule.unlockDate).toLocaleString()}
+          {sealed ? (
+            <SealedCapsule
+              unlocksAt={view.unlocksAt}
+              now={now}
+              late={late}
+              onDone={() => {
+                setOpenedHere(true);
+                open();
+              }}
+            />
+          ) : (
+            <OpenedLetter {...view.capsule} unfold={openedHere} />
+          )}
+          <p className="mt-10 text-slate">
+            TimeCapsule keeps a message sealed until the day you choose.{" "}
+            <Link to={user ? "/create" : "/signup"} className="link">
+              Write your own
+            </Link>
           </p>
         </>
       )}

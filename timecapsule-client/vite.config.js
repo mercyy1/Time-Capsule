@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
@@ -15,7 +16,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     // Port 3000 is the API's default allowed origin (CLIENT_ORIGIN).
     server: { port: 3000, strictPort: true },
     preview: { port: 3000, strictPort: true },
