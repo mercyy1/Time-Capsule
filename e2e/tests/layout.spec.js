@@ -67,3 +67,42 @@ test(
     await expectToFit(page, "/forgot-password", "Reset your password");
   },
 );
+
+// The header's links and buttons: how many lines their words take, and where
+// each one's middle is (they share one row when their middles line up).
+const headerItems = (page) =>
+  page.locator("header a:visible, header button:visible").evaluateAll((elements) =>
+    elements.map((element) => {
+      // Each piece of text has one rectangle per line it's on (none if hidden).
+      let lines = 0;
+      const texts = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let text = texts.nextNode(); text; text = texts.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const tops = [...range.getClientRects()].map((rect) => Math.round(rect.top));
+        lines = Math.max(lines, new Set(tops).size);
+      }
+      const box = element.getBoundingClientRect();
+      return { text: element.innerText, lines, middle: box.top + box.height / 2 };
+    }),
+  );
+
+async function expectHeaderOnOneLine(page) {
+  const items = await headerItems(page);
+  for (const item of items) expect(item.lines, `"${item.text}" breaks across lines`).toBe(1);
+  const middles = items.map((item) => item.middle);
+  expect(Math.max(...middles) - Math.min(...middles), "all on one row").toBeLessThanOrEqual(3);
+}
+
+test("on a small phone, the header stays on one line", async ({ page, account }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+
+  await page.goto("/signup");
+  await expect(page.getByRole("heading", { name: "Create an account" })).toBeVisible();
+  await expectHeaderOnOneLine(page);
+
+  await logIn(page, account);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Your capsules" })).toBeVisible();
+  await expectHeaderOnOneLine(page);
+});

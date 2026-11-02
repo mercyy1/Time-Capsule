@@ -39,32 +39,39 @@ export default function Layout({ children }) {
       >
         Skip to the page
       </a>
+      {/* On phones, shorter labels and tighter buttons keep the header on one
+          line down to 360 pixels across; on anything narrower, the links move
+          under the wordmark rather than breaking in the middle. */}
       <header className="border-b border-rule/80 bg-sheet/70">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link to="/" className="display flex items-baseline text-xl text-ink">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-2 gap-y-1 px-4 py-3 sm:gap-x-3 sm:px-6">
+          <Link to="/" className="display flex items-baseline text-lg text-ink sm:text-xl">
             TimeCapsule
           </Link>
           {user ? (
-            <nav aria-label="Account" className="flex items-center gap-1 sm:gap-3">
-              <NavLink to="/create" className="btn btn-primary">
+            <nav
+              aria-label="Account"
+              className="flex items-center gap-1 whitespace-nowrap sm:gap-3"
+            >
+              <NavLink to="/create" className="btn btn-primary max-sm:px-3">
                 <span className="sm:hidden">Write</span>
                 <span className="hidden sm:inline">Write a capsule</span>
               </NavLink>
               <button
                 type="button"
-                className="btn text-slate hover:text-ink"
+                className="btn text-slate hover:text-ink max-sm:px-2"
                 onClick={handleLogout}
               >
                 Log out
               </button>
             </nav>
           ) : (
-            <nav aria-label="Account" className="flex items-center gap-4 text-sm">
+            <nav aria-label="Account" className="flex items-center gap-4 text-sm whitespace-nowrap">
               <NavLink to="/login" className={navLink}>
                 Log in
               </NavLink>
               <NavLink to="/signup" className={navLink}>
-                Create an account
+                <span className="sm:hidden">Sign up</span>
+                <span className="hidden sm:inline">Create an account</span>
               </NavLink>
             </nav>
           )}
