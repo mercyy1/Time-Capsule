@@ -6,57 +6,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TimeCapsule: users write a message that stays locked until a future date. It's being taken from a student MVP to a
 production app in phases. The audit, the decisions already made (hosting, email, scope…) and the per-phase plan
-live in `docs/PRODUCTION_PLAN.md` — read it before starting a phase. Status: Phase 0 (recon) done; Phase 1 next.
+live in `docs/PRODUCTION_PLAN.md` — read it before starting a phase. Status: Phases 0 (recon) and 1 (foundations)
+done; Phase 2 (security) next.
 
 ## Layout
 
-- `timecapsule-server/` — Express 5 + Prisma 6 + PostgreSQL, CommonJS. All routes are in `index.js`, the JWT
-  middleware and token helper in `auth.js`, the schema in `prisma/schema.prisma`. No migrations yet.
-- `timecapsule-client/` — React 19 + react-router 7 + Tailwind 3 on Create React App (Vite replaces it in Phase 1).
-  Routed screens are in `src/pages/`; `src/api.jsx` is the shared axios instance; `src/context/AuthContext.jsx`
-  holds `{ user, token }`.
-- **Until Phase 1 imports it, the client is a nested git repo** (its own `.git`, one boilerplate commit, all real
-  code uncommitted) that the parent tracks as a gitlink with no `.gitmodules`. Don't `git add` it from the parent
-  and don't run non-read-only git commands inside it.
+- `timecapsule-server/` — Express 5 + Prisma 6 + PostgreSQL, CommonJS, Node 24.
+  - `src/server.js` is the entry point (dotenv → env check → listen); `src/app.js` exports `createApp()`, which
+    builds the app without listening (tests use it).
+  - `src/routes/` handles HTTP only (input checks, status codes). `src/services/` holds the database queries and
+    the response shapes. `src/middleware/` holds `authenticate` and the JSON error handler. `src/db.js` is the
+    one Prisma client.
+  - `src/config/env.js`: zod-validated settings. Read them with `getEnv()`, never `process.env` directly. Add any
+    new variable there and to `.env.example`.
+  - Schema in `prisma/schema.prisma`, committed migrations in `prisma/migrations/`.
+- `timecapsule-client/` — React 19 + react-router 7 + Tailwind 3 on Vite 8 (ES modules).
+  - Routed screens are in `src/pages/`.
+  - `src/api.js` is the shared axios instance; its base URL comes from `VITE_API_URL`, and `vite.config.js`
+    refuses to run without it.
+  - `src/context/AuthProvider.jsx` holds `{ user, token, login, logout }`; read it with `useAuth()` from
+    `src/context/AuthContext.js`.
+- `docker-compose.yml` (root) — Postgres 18 on `127.0.0.1:5432` with databases `timecapsule` (dev) and
+  `timecapsule_test` (created by `docker/postgres/init/`). User and password are both `timecapsule`.
 
 ## Commands
 
+Database: start Docker Desktop, then `docker compose up -d` from the repo root.
+
 Server (`cd timecapsule-server`):
-- `npm run dev` (nodemon) or `npm start` — API on `PORT` (default 5000)
-- `npm run db:migrate` — `prisma migrate dev`
-- No test or lint scripts yet (Phase 1 adds Vitest + Supertest, ESLint, Prettier and docker-compose).
+- `npm ci` — also runs `prisma generate` (our own postinstall; Prisma's hook doesn't generate here, see below)
+- `npm run dev` (nodemon) or `npm start` — API on `PORT` (default 5000); needs `.env` (copy `.env.example`)
+- `npm test` — Jest + Supertest against `timecapsule_test`; one file: `npx jest test/capsules.test.js`; one
+  test: `npx jest -t "owner can delete"`
+- `npm run lint`, `npm run format` (Prettier, writes), `npm run format:check`
+- `npm run db:migrate` (`prisma migrate dev`, creates a migration) / `npm run db:deploy` (`prisma migrate deploy`,
+  applies committed ones)
 
 Client (`cd timecapsule-client`):
-- `BROWSER=none npm start` — dev server on :3000; the API URL is hard-coded to `http://localhost:5000` in `src/api.jsx`
-- `npm run build`
-- `npm test` is CRA boilerplate that fails — it is not a test suite.
+- `npm run dev` — Vite on :3000 (strictPort); needs `.env` with `VITE_API_URL` (copy `.env.example`)
+- `npm run build` / `npm run preview`, `npm run lint`, `npm run format`
+- No client tests yet (Playwright end-to-end comes in Phase 4).
 
-Local database (no compose file yet) — start Docker Desktop first:
-```bash
-docker run -d --name tc-pg -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=timecapsule -p 5433:5432 postgres:17-alpine
-DATABASE_URL=postgresql://dev:dev@localhost:5433/timecapsule npx prisma db push
-DATABASE_URL=postgresql://dev:dev@localhost:5433/timecapsule npm run dev
-```
-`timecapsule-server/.env` points at a live Railway database that we decided never to touch. Setting `DATABASE_URL` on
-the command line is safe: neither dotenv nor Prisma overrides a variable that is already set (verified).
+## Tests
+
+- The suite pins down the current behaviour, status codes and error messages included, so a change that
+  intentionally changes behaviour (e.g. Phase 2's status codes) must update the matching tests in the same commit.
+- Tests get the app only through `test/helpers/app.js`; keep it the single import point. `test/setup/env.js` sets
+  every env var (dotenv never overrides a set variable, so a developer's `.env` can't leak in).
+- The database is wiped before every test. `assertTestDatabase` refuses any database whose name doesn't end in
+  `_test`; `TEST_DATABASE_URL` overrides the default URL. Test files run one at a time (`maxWorkers: 1`).
+- The API rejects past dates, so create already-unlocked capsules with `seedCapsule()` (Prisma) from
+  `test/helpers/db.js`.
 
 ## How the app works (cross-file)
 
-- **The lock is enforced only on the server.** `message` is withheld while `now < unlockDate` in three places in
-  `index.js`: `GET /capsules` sets `message: null`; `GET /capsules/slug/:slug` and `GET /capsules/public/:slug` both
-  return `{ status: "locked", unlocksAt }` and nothing else. Any new read path must apply the same rule.
-- Access: `/capsules/slug/:slug` needs a token and allows the owner, or anyone if `isPublic`;
-  `/capsules/public/:slug` is anonymous, public capsules only, and returns display fields only. Slugs are UUIDs
+- **The lock is enforced only on the server.** `isLocked()` in `src/services/capsules.js` is the one rule:
+  `GET /capsules` returns `message: null` for locked capsules; `GET /capsules/slug/:slug` and
+  `GET /capsules/public/:slug` return only `{ status: "locked", unlocksAt }`. Any new read path must use it.
+- Access (`src/routes/capsules.js`): `/capsules/slug/:slug` needs a token and allows the owner, or anyone if
+  `isPublic`; `/capsules/public/:slug` is anonymous, public capsules only, display fields only. Slugs are UUIDs
   generated by Prisma.
-- Auth: `POST /signup` and `POST /login` return `{ token, user }`. JWT is HS256 with payload `{ id, email }`, 1-day
-  expiry, signed with `JWT_SECRET`. The client stores both in localStorage; `api.jsx` adds `Authorization: Bearer`
-  to every request; `ProtectedRoute` only checks that a user object exists, not that the token is still valid.
+- Auth: `POST /signup` and `POST /login` return `{ token, user }`. JWT (HS256, payload `{ id, email }`, 1-day
+  expiry, `JWT_SECRET` ≥ 32 chars) is made in `src/services/tokens.js`. The client keeps both in localStorage;
+  `api.js` adds `Authorization: Bearer` to every request; `ProtectedRoute` only checks that a user object exists.
 - Time: the client turns the `datetime-local` value into a UTC ISO string, Postgres stores `timestamp(3)` in UTC
   (via Prisma), and the server compares instants. Keep every date that crosses the API as ISO 8601 with an offset.
-- Errors: Express 5 forwards async errors to the JSON error handler at the bottom of `index.js` (currently always 500).
+- Errors: Express 5 forwards async errors to `src/middleware/errorHandler.js` (currently always 500, even for bad
+  JSON — Phase 2 fixes this). Unknown routes get Express's default HTML 404.
 - `Capsule.email` and `Capsule.notified` are reserved for Phase 3's unlock emails; nothing reads or writes them yet.
-- `src/components/Create.jsx`, `src/components/ViewCapsule.jsx` and `src/components/CapsuleCard.jsx` are dead code
-  (not routed) — the live screens are in `src/pages/`.
 
 ## Conventions set by the repo owner
 
@@ -70,13 +87,28 @@ the command line is safe: neither dotenv nor Prisma overrides a variable that is
 - Explain each change as problem → fix, defining technical terms the first time they appear.
 - Check current docs before using a library's API or choosing versions. Context7 isn't installed — fetch the
   official docs.
+- Formatting-only commits go in `.git-blame-ignore-revs`.
+
+## Gotchas
+
+- npm 11 warns about dependencies with install scripts until they're listed in `allowScripts` (package.json); its
+  docs say unlisted ones will be blocked by default. Review new ones with `npm install-scripts ls`, then approve or
+  deny them.
+- Prisma 6's own postinstall can't find the CLI (the `prisma` package's main entry points at a file it doesn't
+  ship), so the client is generated by our `postinstall: prisma generate`. Don't remove it.
+- The old server `.env` (a live Railway database we decided never to touch) is backed up outside the repo; the
+  current `.env` points at the compose database. Setting `DATABASE_URL` on the command line is safe: neither
+  dotenv nor Prisma overrides a variable that is already set (verified).
 
 ## Environment notes (Windows)
 
 - Shells: Git Bash (Bash tool) and PowerShell. Docker Desktop must be running before `docker` commands work.
-- Stopping a backgrounded `npm start` leaves the React dev server's `node` child running; find it with
-  `Get-NetTCPConnection -LocalPort 3000` and stop that PID.
+- Stopping a backgrounded `npm run dev`/`npm start` can leave a `node` child running; find it with
+  `Get-NetTCPConnection -LocalPort 3000` (or 5000) and stop that PID.
+- Node's `fetch` refuses some ports (e.g. 5060/5061); pick others for throwaway servers.
 - Browser checks: if the Claude in Chrome extension isn't connected, `playwright-core` with
   `chromium.launch({ channel: "chrome" })` drives the installed Chrome headlessly without downloading browsers.
   Don't run `chrome.exe --version` — on Windows it launches Chrome instead of printing a version.
+- `git push` can hang on a Git Credential Manager account picker; push with
+  `GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push`.
 - GitHub repo: `mercyy1/Time-Capsule` (renamed from `mhrshi123`; old URLs redirect).
