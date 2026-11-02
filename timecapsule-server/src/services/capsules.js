@@ -65,7 +65,12 @@ function createCapsule({ ownerId, title, message, unlockDate, isPublic }) {
 
 const findCapsuleBySlug = (slug) => prisma.capsule.findUnique({ where: { slug } });
 const findCapsuleById = (id) => prisma.capsule.findUnique({ where: { id } });
-const deleteCapsule = (id) => prisma.capsule.delete({ where: { id } });
+// Deletes the capsule only if `ownerId` owns it, in one query. Returns whether a
+// row was deleted, so a capsule deleted twice at once can't cause an error.
+async function deleteOwnedCapsule(id, ownerId) {
+  const { count } = await prisma.capsule.deleteMany({ where: { id, ownerId } });
+  return count > 0;
+}
 
 module.exports = {
   isLocked,
@@ -76,5 +81,5 @@ module.exports = {
   createCapsule,
   findCapsuleBySlug,
   findCapsuleById,
-  deleteCapsule,
+  deleteOwnedCapsule,
 };

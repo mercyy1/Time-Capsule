@@ -11,6 +11,13 @@ const router = express.Router();
 // A slug that isn't a UUID can't match a capsule, so it skips the database.
 const findBySlug = async (slug) => (isSlug(slug) ? capsules.findCapsuleBySlug(slug) : null);
 
+// One answer for "doesn't exist" and "exists but isn't yours to see", so nobody
+// can find out whether someone else's private capsule exists.
+const capsuleNotFound = () => new HttpError(404, "NOT_FOUND", "Capsule not found");
+
+// A signed-in user can see their own capsules and anyone's public ones.
+const canView = (capsule, user) => capsule.isPublic || capsule.ownerId === user.id;
+
 // The signed-in user's capsules.
 router.get("/", authenticate, async (req, res) => {
   res.json(await capsules.listCapsulesForOwner(req.user.id));
@@ -33,9 +40,7 @@ router.post("/", authenticate, async (req, res) => {
 router.get("/slug/:slug", authenticate, async (req, res) => {
   const capsule = await findBySlug(req.params.slug);
 
-  if (!capsule) throw new HttpError(404, "NOT_FOUND", "Not found");
-  if (!capsule.isPublic && capsule.ownerId !== req.user.id)
-    throw new HttpError(403, "FORBIDDEN", "Unauthorized");
+  if (!capsule || !canView(capsule, req.user)) throw capsuleNotFound();
 
   if (capsules.isLocked(capsule)) return res.json(capsules.toLockedView(capsule));
   res.json(capsules.toUnlockedView(capsule));
@@ -46,10 +51,13 @@ router.delete("/:id", authenticate, async (req, res) => {
 
   const capsule = await capsules.findCapsuleById(id);
 
-  if (!capsule) throw new HttpError(404, "NOT_FOUND", "Capsule not found");
-  if (capsule.ownerId !== req.user.id) throw new HttpError(403, "FORBIDDEN", "Access denied");
+  if (!capsule || !canView(capsule, req.user)) throw capsuleNotFound();
+  // Someone else's public capsule: visible to them, but not theirs to delete.
+  if (capsule.ownerId !== req.user.id)
+    throw new HttpError(403, "FORBIDDEN", "Only the owner can delete this capsule");
 
-  await capsules.deleteCapsule(capsule.id);
+  // Also false if the owner deleted it in the meantime (e.g. from another tab).
+  if (!(await capsules.deleteOwnedCapsule(id, req.user.id))) throw capsuleNotFound();
   res.json({ message: "Capsule deleted" });
 });
 
@@ -57,8 +65,7 @@ router.delete("/:id", authenticate, async (req, res) => {
 router.get("/public/:slug", async (req, res) => {
   const capsule = await findBySlug(req.params.slug);
 
-  if (!capsule || !capsule.isPublic)
-    throw new HttpError(404, "NOT_FOUND", "Capsule not found or not public");
+  if (!capsule || !capsule.isPublic) throw capsuleNotFound();
 
   if (capsules.isLocked(capsule)) return res.json(capsules.toLockedView(capsule));
   res.json(capsules.toPublicView(capsule));

@@ -8,6 +8,9 @@ afterAll(() => prisma.$disconnect());
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+// Every "no such capsule (that you may see)" answer, whatever the route.
+const CAPSULE_NOT_FOUND = { error: "Capsule not found", code: "NOT_FOUND" };
+
 // Creates a capsule through the API (so the unlock date must be in the future).
 async function createCapsule(owner, fields = {}) {
   const res = await request(app)
@@ -275,15 +278,15 @@ describe("GET /capsules/slug/:slug", () => {
   test.each([
     ["locked", 30],
     ["unlocked", -1],
-  ])("stranger, private and %s: 403", async (_state, days) => {
+  ])("stranger, private and %s: 404, as if it didn't exist (was 403)", async (_state, days) => {
     const ada = await signUp();
     const bob = await signUp();
     const capsule = await seedCapsule({ ownerId: ada.user.id, unlockDate: daysFromNow(days) });
 
     const res = await open(capsule.slug, bob);
 
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Unauthorized", code: "FORBIDDEN" });
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(CAPSULE_NOT_FOUND);
   });
 
   test("stranger, public and locked: only the status and unlock time", async () => {
@@ -327,7 +330,7 @@ describe("GET /capsules/slug/:slug", () => {
     const res = await open("00000000-0000-4000-8000-000000000000", ada);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Not found", code: "NOT_FOUND" });
+    expect(res.body).toEqual(CAPSULE_NOT_FOUND);
   });
 
   test("404 without a database query for a slug that isn't a UUID", async () => {
@@ -394,14 +397,14 @@ describe("GET /capsules/public/:slug", () => {
       .set("Authorization", ada.auth);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Capsule not found or not public", code: "NOT_FOUND" });
+    expect(res.body).toEqual(CAPSULE_NOT_FOUND);
   });
 
   test("404 for a slug that doesn't exist", async () => {
     const res = await request(app).get("/capsules/public/00000000-0000-4000-8000-000000000000");
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Capsule not found or not public", code: "NOT_FOUND" });
+    expect(res.body).toEqual(CAPSULE_NOT_FOUND);
   });
 
   test("404 without a database query for a slug that isn't a UUID", async () => {
@@ -427,7 +430,7 @@ describe("DELETE /capsules/:id", () => {
     await expect(prisma.capsule.findUnique({ where: { id: capsule.id } })).resolves.toBeNull();
   });
 
-  test("anyone else gets 403 and the capsule stays", async () => {
+  test("someone else's public capsule: 403 (they can see it) and the capsule stays", async () => {
     const ada = await signUp();
     const bob = await signUp();
     const capsule = await createCapsule(ada, { isPublic: true });
@@ -435,7 +438,22 @@ describe("DELETE /capsules/:id", () => {
     const res = await request(app).delete(`/capsules/${capsule.id}`).set("Authorization", bob.auth);
 
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Access denied", code: "FORBIDDEN" });
+    expect(res.body).toEqual({
+      error: "Only the owner can delete this capsule",
+      code: "FORBIDDEN",
+    });
+    await expect(prisma.capsule.findUnique({ where: { id: capsule.id } })).resolves.not.toBeNull();
+  });
+
+  test("someone else's private capsule: 404, as if it didn't exist (was 403), and it stays", async () => {
+    const ada = await signUp();
+    const bob = await signUp();
+    const capsule = await createCapsule(ada);
+
+    const res = await request(app).delete(`/capsules/${capsule.id}`).set("Authorization", bob.auth);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(CAPSULE_NOT_FOUND);
     await expect(prisma.capsule.findUnique({ where: { id: capsule.id } })).resolves.not.toBeNull();
   });
 
@@ -445,7 +463,32 @@ describe("DELETE /capsules/:id", () => {
     const res = await request(app).delete("/capsules/999999").set("Authorization", ada.auth);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Capsule not found", code: "NOT_FOUND" });
+    expect(res.body).toEqual(CAPSULE_NOT_FOUND);
+  });
+
+  test("deleting twice: the second time is a 404", async () => {
+    const ada = await signUp();
+    const capsule = await createCapsule(ada);
+    const remove = () =>
+      request(app).delete(`/capsules/${capsule.id}`).set("Authorization", ada.auth);
+
+    expect((await remove()).status).toBe(200);
+    const again = await remove();
+
+    expect(again.status).toBe(404);
+    expect(again.body).toEqual(CAPSULE_NOT_FOUND);
+  });
+
+  test("two deletes at the same moment: one 200 and one 404, never a 500", async () => {
+    const ada = await signUp();
+    const capsule = await createCapsule(ada);
+    const remove = () =>
+      request(app).delete(`/capsules/${capsule.id}`).set("Authorization", ada.auth);
+
+    const results = await Promise.all([remove(), remove()]);
+
+    expect(results.map((res) => res.status).sort()).toEqual([200, 404]);
+    await expect(prisma.capsule.count()).resolves.toBe(0);
   });
 
   test.each([
