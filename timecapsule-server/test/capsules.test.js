@@ -254,14 +254,18 @@ describe("GET /capsules/slug/:slug", () => {
     return user ? req.set("Authorization", user.auth) : req;
   };
 
-  test("owner, locked: only the status and unlock time, never the message", async () => {
+  test("owner, locked: which capsule it is (was only the status), never the message", async () => {
     const ada = await signUp();
     const capsule = await createCapsule(ada);
 
     const res = await open(capsule.slug, ada);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: "locked", unlocksAt: capsule.unlockDate });
+    expect(res.body).toEqual({
+      status: "locked",
+      unlocksAt: capsule.unlockDate,
+      capsule: { id: capsule.id, title: capsule.title, unlockDate: capsule.unlockDate },
+    });
   });
 
   test("owner, unlocked: the capsule with its message", async () => {

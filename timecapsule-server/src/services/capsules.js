@@ -7,6 +7,13 @@ const isLocked = (capsule, now = new Date()) => now < capsule.unlockDate;
 // All a locked capsule reveals: that it is locked, and when it opens.
 const toLockedView = (capsule) => ({ status: "locked", unlocksAt: capsule.unlockDate });
 
+// A locked capsule as shown to its owner: also which capsule it is (for the page
+// title and the Delete button), but still never the message.
+const toOwnerLockedView = (capsule) => ({
+  ...toLockedView(capsule),
+  capsule: { id: capsule.id, title: capsule.title, unlockDate: capsule.unlockDate },
+});
+
 // An unlocked capsule as shown to a signed-in user (its owner, or anyone if public).
 const toUnlockedView = (capsule) => ({
   status: "unlocked",
@@ -75,6 +82,7 @@ async function deleteOwnedCapsule(id, ownerId) {
 module.exports = {
   isLocked,
   toLockedView,
+  toOwnerLockedView,
   toUnlockedView,
   toPublicView,
   listCapsulesForOwner,

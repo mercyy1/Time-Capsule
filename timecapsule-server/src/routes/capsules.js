@@ -43,7 +43,10 @@ router.get("/slug/:slug", authenticate, async (req, res) => {
 
   if (!capsule || !canView(capsule, req.user)) throw capsuleNotFound();
 
-  if (capsules.isLocked(capsule)) return res.json(capsules.toLockedView(capsule));
+  if (capsules.isLocked(capsule)) {
+    const isOwner = capsule.ownerId === req.user.id;
+    return res.json(isOwner ? capsules.toOwnerLockedView(capsule) : capsules.toLockedView(capsule));
+  }
   res.json(capsules.toUnlockedView(capsule));
 });
 
