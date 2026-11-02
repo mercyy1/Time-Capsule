@@ -45,7 +45,11 @@ export default defineConfig({
         `npx vite build --outDir "${settings.CLIENT_BUILD}" --emptyOutDir && ` +
         `npx vite preview --outDir "${settings.CLIENT_BUILD}" --port ${settings.CLIENT_PORT} --strictPort`,
       url: settings.CLIENT_URL,
-      env: { ...process.env, VITE_API_URL: settings.API_URL },
+      env: {
+        ...process.env,
+        VITE_API_URL: settings.API_URL,
+        VITE_TURNSTILE_SITE_KEY: settings.TURNSTILE_SITE_KEY,
+      },
       reuseExistingServer: false,
       timeout: 120_000,
     },

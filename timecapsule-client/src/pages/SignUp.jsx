@@ -6,6 +6,8 @@ import { showApiError } from "../apiErrors";
 import AuthPage from "../components/AuthPage";
 import Field from "../components/Field";
 import Notice from "../components/Notice";
+import SecurityCheck from "../components/SecurityCheck";
+import useSecurityCheck from "../useSecurityCheck";
 import { emailRules, newPasswordRules } from "../validation";
 
 export default function Signup() {
@@ -18,13 +20,22 @@ export default function Signup() {
   const [problem, setProblem] = useState(null);
   // The API's "check your email" message, once the signup is sent.
   const [sent, setSent] = useState(null);
+  const check = useSecurityCheck("signup");
 
   const onSubmit = async (data) => {
     setProblem(null);
+    let captchaToken;
     try {
-      const res = await api.post("/signup", data);
+      captchaToken = await check.token();
+    } catch (err) {
+      setProblem(err.message);
+      return;
+    }
+    try {
+      const res = await api.post("/signup", { ...data, captchaToken });
       setSent(res.data.message);
     } catch (err) {
+      check.reset();
       setProblem(showApiError(err, setError, ["email", "password"], "Couldn't sign you up."));
     }
   };
@@ -89,6 +100,7 @@ export default function Signup() {
             />
           )}
         </Field>
+        <SecurityCheck check={check} />
         <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting}>
           {isSubmitting ? "Creating your account…" : "Create account"}
         </button>

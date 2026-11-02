@@ -1,6 +1,7 @@
 import { expect, logIn, newAddress, test } from "../support/fixtures.js";
 import { linkIn, waitForEmail } from "../support/mail.js";
 import settings from "../support/settings.cjs";
+import { TURNSTILE_SCRIPT } from "../support/turnstile.js";
 
 test(
   "sign up, confirm the address from the email, log in",
@@ -48,13 +49,45 @@ test("the forms say what's wrong next to the field", async ({ page, account }) =
   await expect(page.getByRole("alert")).toHaveText("Incorrect email or password");
 });
 
+test("a security check the API refuses can be tried again", async ({ page }, testInfo) => {
+  const email = newAddress(testInfo);
+  // The widget's first token is one the API refuses; the next is a good one.
+  await page.addInitScript(() => {
+    window.turnstileTokens = ["refused"];
+  });
+
+  await page.goto("/signup");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(settings.PASSWORD);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "The security check didn't go through. Please try again.",
+  );
+
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  await waitForEmail(email);
+});
+
+test("when the security check can't load, the form says what to do", async ({ page }) => {
+  await page.route(TURNSTILE_SCRIPT, (route) => route.abort());
+
+  await page.goto("/forgot-password");
+  await page.getByLabel("Email").fill("someone@example.com");
+  await page.getByRole("button", { name: "Email me a link" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "The security check couldn't load. Check your connection, or allow challenges.cloudflare.com " +
+      "if something on your device blocks it, then reload the page.",
+  );
+});
+
 test("logging in before confirming the address sends a new link", async ({
   page,
   request,
 }, testInfo) => {
   const email = newAddress(testInfo);
   await request.post(`${settings.API_URL}/signup`, {
-    data: { email, password: settings.PASSWORD },
+    data: { email, password: settings.PASSWORD, captchaToken: settings.TURNSTILE_TOKEN },
   });
   await waitForEmail(email);
 

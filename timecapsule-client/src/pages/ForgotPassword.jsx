@@ -6,6 +6,8 @@ import { showApiError } from "../apiErrors";
 import AuthPage from "../components/AuthPage";
 import Field from "../components/Field";
 import Notice from "../components/Notice";
+import SecurityCheck from "../components/SecurityCheck";
+import useSecurityCheck from "../useSecurityCheck";
 import { emailRules } from "../validation";
 
 // "Forgot your password?": emails a link to choose a new one.
@@ -18,13 +20,22 @@ export default function ForgotPassword() {
   } = useForm();
   const [sent, setSent] = useState(null);
   const [problem, setProblem] = useState(null);
+  const check = useSecurityCheck("forgot-password");
 
   const onSubmit = async ({ email }) => {
     setProblem(null);
+    let captchaToken;
     try {
-      const res = await api.post("/forgot-password", { email });
+      captchaToken = await check.token();
+    } catch (err) {
+      setProblem(err.message);
+      return;
+    }
+    try {
+      const res = await api.post("/forgot-password", { email, captchaToken });
       setSent(res.data.message);
     } catch (err) {
+      check.reset();
       setProblem(showApiError(err, setError, ["email"], "Couldn't send the link."));
     }
   };
@@ -73,6 +84,7 @@ export default function ForgotPassword() {
             />
           )}
         </Field>
+        <SecurityCheck check={check} />
         <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting}>
           {isSubmitting ? "Sending…" : "Email me a link"}
         </button>

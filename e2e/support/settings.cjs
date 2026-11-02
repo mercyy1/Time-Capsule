@@ -22,4 +22,10 @@ module.exports = {
   JWT_SECRET: "e2e-only-secret-that-is-at-least-32-characters",
   JOB_SECRET: "e2e-only-job-secret-that-is-at-least-32-chars",
   PASSWORD: "correct horse battery",
+  // The security check (Cloudflare Turnstile). The client is built with
+  // Cloudflare's test site key, its script is replaced by a fake that hands out
+  // the dummy token Cloudflare's test keys produce (turnstile.js), and the test
+  // API accepts that token and no other (api-server.cjs).
+  TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+  TURNSTILE_TOKEN: "XXXX.DUMMY.TOKEN.XXXX",
 };
