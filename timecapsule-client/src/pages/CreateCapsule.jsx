@@ -47,7 +47,7 @@ export default function CreateCapsule() {
     <div className="max-w-md mx-auto mt-12 p-6 bg-white rounded-2xl shadow-lg">
       <h2 className="text-3xl font-bold mb-6 text-center">Create a Time Capsule</h2>
 
-      {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-sm">{error}</div>}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>
@@ -55,7 +55,7 @@ export default function CreateCapsule() {
           <input
             type="text"
             {...register("title", { required: "Title is required" })}
-            className="w-full input input-bordered"
+            className="w-full input"
             placeholder="e.g. Dear Future Me"
           />
           {errors.title && <p className="text-red-600 text-sm mt-1">{errors.title.message}</p>}
@@ -66,7 +66,7 @@ export default function CreateCapsule() {
           <textarea
             rows={5}
             {...register("message", { required: "Message is required" })}
-            className="w-full input input-bordered"
+            className="w-full input"
             placeholder="Write something to your future self..."
           />
           {errors.message && <p className="text-red-600 text-sm mt-1">{errors.message.message}</p>}
@@ -77,7 +77,7 @@ export default function CreateCapsule() {
           <input
             type="datetime-local"
             {...register("unlockDate", { required: "Unlock date is required" })}
-            className="w-full input input-bordered"
+            className="w-full input"
             min={localISOTime}
           />
           {errors.unlockDate && (
@@ -93,7 +93,7 @@ export default function CreateCapsule() {
             id="recipientEmail"
             type="email"
             {...register("recipientEmail")}
-            className="w-full input input-bordered"
+            className="w-full input"
             placeholder="friend@example.com"
             aria-describedby="recipientEmailHelp"
           />

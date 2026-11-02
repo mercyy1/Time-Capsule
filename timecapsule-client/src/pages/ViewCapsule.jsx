@@ -77,7 +77,7 @@ export default function ViewCapsule() {
   if (status === "error") return <p className="p-6">Capsule not found or error occurred.</p>;
 
   return (
-    <div className="max-w-xl mx-auto p-6 bg-white shadow-lg rounded mt-8">
+    <div className="max-w-xl mx-auto p-6 bg-white shadow-lg rounded-sm mt-8">
       <h2 className="text-2xl font-bold mb-4">{capsule.title}</h2>
       <p className="text-gray-600 mb-2">
         Unlocks at: {new Date(capsule.unlockDate).toLocaleString()}
@@ -90,7 +90,7 @@ export default function ViewCapsule() {
       )}
 
       <button
-        className="mt-6 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        className="mt-6 bg-red-600 text-white px-4 py-2 rounded-sm hover:bg-red-700"
         onClick={handleDelete}
         disabled={deleting}
       >

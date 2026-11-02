@@ -28,7 +28,7 @@ export default function Login() {
   };
 
   return (
-    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded shadow">
+    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-sm shadow-sm">
       <h2 className="text-2xl mb-6 font-semibold">Log In</h2>
       {sessionEnded && !error && <p className="mb-4 text-gray-700">{sessionEnded}</p>}
       {error && <p className="mb-4 text-red-600">{error}</p>}

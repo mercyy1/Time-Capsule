@@ -21,7 +21,7 @@ export default function Signup() {
 
   if (sent) {
     return (
-      <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded shadow">
+      <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-sm shadow-sm">
         <h2 className="text-2xl mb-6 font-semibold">Check your email</h2>
         <p className="mb-4 text-green-700">{sent}</p>
         <p className="mb-4 text-sm text-gray-600">
@@ -36,7 +36,7 @@ export default function Signup() {
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded shadow">
+    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-sm shadow-sm">
       <h2 className="text-2xl mb-6 font-semibold">Sign Up</h2>
       {error && <p className="mb-4 text-red-600">{error}</p>}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

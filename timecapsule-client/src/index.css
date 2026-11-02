@@ -1,12 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Tailwind 4 changed two defaults; these keep the v3 look until the redesign. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+}
 
 .input {
-  @apply border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500;
+  @apply border border-gray-300 rounded-sm px-3 py-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500;
 }
 .btn {
-  @apply px-4 py-2 rounded font-semibold;
+  @apply px-4 py-2 rounded-sm font-semibold;
 }
 .btn-primary {
   @apply bg-blue-600 text-white hover:bg-blue-700;

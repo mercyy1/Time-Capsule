@@ -66,7 +66,7 @@ export default function Dashboard() {
           return (
             <div
               key={c.id}
-              className="border rounded p-4 mb-4 bg-white shadow cursor-pointer hover:bg-gray-50"
+              className="border border-gray-200 rounded-sm p-4 mb-4 bg-white shadow-sm cursor-pointer hover:bg-gray-50"
               //   onClick={() => navigate(`/capsule/${c.slug || c.id}`)}
               onClick={() =>
                 c.isPublic

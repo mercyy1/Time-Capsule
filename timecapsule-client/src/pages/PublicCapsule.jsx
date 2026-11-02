@@ -29,7 +29,7 @@ export default function PublicCapsule() {
   if (status === "error") return <p>Capsule not found.</p>;
 
   return (
-    <div className="max-w-xl mx-auto mt-10 bg-white p-6 rounded shadow">
+    <div className="max-w-xl mx-auto mt-10 bg-white p-6 rounded-sm shadow-sm">
       {status === "locked" ? (
         <>
           <h2 className="text-xl font-semibold">🔒 Capsule Locked</h2>

@@ -42,7 +42,7 @@ export default function VerifyEmail() {
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded shadow">
+    <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-sm shadow-sm">
       <h2 className="text-2xl mb-6 font-semibold">Confirm your email</h2>
       {content}
       {(!token || result) && (
