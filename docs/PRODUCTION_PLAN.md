@@ -192,7 +192,7 @@ Email: **Brevo** (300/day free with Brevo branding — figures from third-party 
 ## 4. Phases
 
 Every phase gets its own branch (`phase-N-name`), small focused commits and a PR at the end — then work **stops for
-review**. PRs are never merged by Claude.
+review**. Only the repository owner merges PRs.
 
 ### Phase 1 — Repo + foundations (`phase-1-foundations`)
 Goal: everything in one repo, reproducible locally, protected by tests — with **no change in API behaviour**.
