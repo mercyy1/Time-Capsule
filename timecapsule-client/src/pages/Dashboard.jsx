@@ -80,6 +80,12 @@ export default function Dashboard() {
                 Unlocks at: {new Date(c.unlockDate).toLocaleString()}
               </p>
 
+              {c.recipientEmail && (
+                <p className="text-sm text-gray-600 mb-2">
+                  Emailed to {c.recipientEmail} when it opens
+                </p>
+              )}
+
               {isUnlocked ? (
                 c.message ? (
                   <p className="mb-2">

@@ -30,7 +30,7 @@ export default function CreateCapsule() {
       message: data.message.trim(),
       unlockDate: new Date(data.unlockDate).toISOString(),
       isPublic: Boolean(data.isPublic),
-      email: data.email || null,
+      recipientEmail: data.recipientEmail.trim() || null,
     };
 
     try {
@@ -86,13 +86,21 @@ export default function CreateCapsule() {
         </div>
 
         <div>
-          <label className="block font-medium mb-1">Email (optional)</label>
+          <label htmlFor="recipientEmail" className="block font-medium mb-1">
+            Email it to someone when it opens (optional)
+          </label>
           <input
+            id="recipientEmail"
             type="email"
-            {...register("email")}
+            {...register("recipientEmail")}
             className="w-full input input-bordered"
-            placeholder="you@example.com"
+            placeholder="friend@example.com"
+            aria-describedby="recipientEmailHelp"
           />
+          <p id="recipientEmailHelp" className="text-sm text-gray-600 mt-1">
+            They'll get the title and the message, and your email address so they can reply. You'll
+            get an email when it opens either way.
+          </p>
         </div>
 
         <div className="flex items-center">
