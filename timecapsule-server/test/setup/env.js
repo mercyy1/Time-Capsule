@@ -10,4 +10,11 @@ Object.assign(process.env, {
   JWT_SECRET: "test-only-secret-that-is-at-least-32-characters",
   CLIENT_ORIGIN: "http://localhost:3000",
   TRUST_PROXY: "0",
+  APP_URL: "http://localhost:3000",
+  EMAIL_DAILY_LIMIT: "100",
+  // Empty means not set. Tests never reach a real email provider: they give the
+  // app a fake mailer (test/helpers/mailer.js) and, where needed, a job secret.
+  EMAIL_FROM: "",
+  RESEND_API_KEY: "",
+  JOB_SECRET: "",
 });
