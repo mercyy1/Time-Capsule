@@ -1,16 +1,14 @@
 const express = require("express");
 const { HttpError } = require("../errors");
+const { parse } = require("../validation");
+const { signupBody, loginBody } = require("../schemas");
 const { findUserByEmail, createUser, passwordMatches, toPublicUser } = require("../services/users");
 const { generateAccessToken } = require("../services/tokens");
 
 const router = express.Router();
 
 router.post("/signup", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password)
-    throw new HttpError(400, "VALIDATION_FAILED", "Email and password required");
-  if (password.length < 8)
-    throw new HttpError(400, "VALIDATION_FAILED", "Password must be at least 8 characters");
+  const { email, password } = parse(signupBody, req.body);
 
   const existingUser = await findUserByEmail(email);
   if (existingUser) throw new HttpError(400, "EMAIL_TAKEN", "Email already exists");
@@ -20,9 +18,7 @@ router.post("/signup", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password)
-    throw new HttpError(400, "VALIDATION_FAILED", "Email and password required");
+  const { email, password } = parse(loginBody, req.body);
 
   const user = await findUserByEmail(email);
   if (!user) throw new HttpError(400, "INVALID_CREDENTIALS", "Invalid credentials");
