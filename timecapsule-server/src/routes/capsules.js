@@ -1,12 +1,15 @@
 const express = require("express");
 const { HttpError } = require("../errors");
 const { parse } = require("../validation");
-const { newCapsuleBody } = require("../schemas");
+const { newCapsuleBody, capsuleIdParams, isSlug } = require("../schemas");
 const { authenticate } = require("../middleware/authenticate");
 const capsules = require("../services/capsules");
 
 // Mounted at /capsules.
 const router = express.Router();
+
+// A slug that isn't a UUID can't match a capsule, so it skips the database.
+const findBySlug = async (slug) => (isSlug(slug) ? capsules.findCapsuleBySlug(slug) : null);
 
 // The signed-in user's capsules.
 router.get("/", authenticate, async (req, res) => {
@@ -28,7 +31,7 @@ router.post("/", authenticate, async (req, res) => {
 
 // Opens a capsule for a signed-in user: its owner, or anyone if it is public.
 router.get("/slug/:slug", authenticate, async (req, res) => {
-  const capsule = await capsules.findCapsuleBySlug(req.params.slug);
+  const capsule = await findBySlug(req.params.slug);
 
   if (!capsule) throw new HttpError(404, "NOT_FOUND", "Not found");
   if (!capsule.isPublic && capsule.ownerId !== req.user.id)
@@ -39,8 +42,7 @@ router.get("/slug/:slug", authenticate, async (req, res) => {
 });
 
 router.delete("/:id", authenticate, async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) throw new HttpError(400, "VALIDATION_FAILED", "Invalid capsule id");
+  const { id } = parse(capsuleIdParams, req.params);
 
   const capsule = await capsules.findCapsuleById(id);
 
@@ -53,7 +55,7 @@ router.delete("/:id", authenticate, async (req, res) => {
 
 // The public share page: no sign-in, public capsules only.
 router.get("/public/:slug", async (req, res) => {
-  const capsule = await capsules.findCapsuleBySlug(req.params.slug);
+  const capsule = await findBySlug(req.params.slug);
 
   if (!capsule || !capsule.isPublic)
     throw new HttpError(404, "NOT_FOUND", "Capsule not found or not public");

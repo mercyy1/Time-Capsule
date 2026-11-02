@@ -330,6 +330,17 @@ describe("GET /capsules/slug/:slug", () => {
     expect(res.body).toEqual({ error: "Not found", code: "NOT_FOUND" });
   });
 
+  test("404 without a database query for a slug that isn't a UUID", async () => {
+    const ada = await signUp();
+    const query = jest.spyOn(prisma.capsule, "findUnique");
+
+    const res = await open("not-a-uuid", ada);
+
+    expect(res.status).toBe(404);
+    expect(query).not.toHaveBeenCalled();
+    query.mockRestore();
+  });
+
   test("requires a token, even for a public capsule", async () => {
     const ada = await signUp();
     const capsule = await createCapsule(ada, { isPublic: true });
@@ -392,6 +403,16 @@ describe("GET /capsules/public/:slug", () => {
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: "Capsule not found or not public", code: "NOT_FOUND" });
   });
+
+  test("404 without a database query for a slug that isn't a UUID", async () => {
+    const query = jest.spyOn(prisma.capsule, "findUnique");
+
+    const res = await request(app).get(`/capsules/public/${"x".repeat(5000)}`);
+
+    expect(res.status).toBe(404);
+    expect(query).not.toHaveBeenCalled();
+    query.mockRestore();
+  });
 });
 
 describe("DELETE /capsules/:id", () => {
@@ -427,13 +448,33 @@ describe("DELETE /capsules/:id", () => {
     expect(res.body).toEqual({ error: "Capsule not found", code: "NOT_FOUND" });
   });
 
-  test("400 for an id that isn't a number", async () => {
+  test.each([
+    ["isn't a number", "abc"],
+    ["is too big for the database (was a 500)", "99999999999"],
+    ["is zero", "0"],
+    ["is negative", "-1"],
+    ["has a fraction", "1.5"],
+    ["uses exponent notation", "1e3"],
+    ["is hexadecimal", "0x10"],
+  ])("400 for an id that %s", async (_case, id) => {
     const ada = await signUp();
 
-    const res = await request(app).delete("/capsules/abc").set("Authorization", ada.auth);
+    const res = await request(app).delete(`/capsules/${id}`).set("Authorization", ada.auth);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Invalid capsule id", code: "VALIDATION_FAILED" });
+    expect(res.body).toEqual({
+      error: "Invalid capsule id",
+      code: "VALIDATION_FAILED",
+      details: [{ field: "id", message: "Invalid capsule id" }],
+    });
+  });
+
+  test("accepts the largest id the database can hold", async () => {
+    const ada = await signUp();
+
+    const res = await request(app).delete("/capsules/2147483647").set("Authorization", ada.auth);
+
+    expect(res.status).toBe(404);
   });
 
   test("requires a token", async () => {
