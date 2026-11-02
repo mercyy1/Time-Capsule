@@ -345,6 +345,26 @@ describe("token check on protected routes", () => {
     });
   });
 
+  test("401 for the token of an account that no longer exists (creating a capsule was a 500)", async () => {
+    const ada = await signUp();
+    await prisma.user.delete({ where: { id: ada.user.id } });
+
+    const list = await get(ada.auth);
+    const create = await request(app)
+      .post("/capsules")
+      .set("Authorization", ada.auth)
+      .send({
+        title: "t",
+        message: "m",
+        unlockDate: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+
+    expect(list.status).toBe(401);
+    expect(list.body).toEqual(INVALID_TOKEN);
+    expect(create.status).toBe(401);
+    expect(create.body).toEqual(INVALID_TOKEN);
+  });
+
   test("401 (was 403) for a token signed with a different secret", async () => {
     const { user } = await signUp();
     const forged = jwt.sign(

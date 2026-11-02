@@ -275,6 +275,9 @@ no route behaves differently.
 - **Two race conditions** found by sending requests at the same moment: simultaneous signups with one email
   crashed with 500 (now the database's unique index decides: one 201, the rest 409), and so did deleting a capsule
   twice at once (now 404).
+- **A token outlived its account**: after a user was deleted, their token still worked, and creating a capsule
+  with it crashed with 500. The token check now also looks the account up (one primary-key query per request) and
+  answers 401 if it's gone; Phase 3's `tokenVersion` check will reuse that lookup.
 - **The local database is reached at `127.0.0.1`**, not `localhost`: on Windows each new connection to
   `localhost` waited ~2 seconds (IPv6 first), which slowed the tests and hid those races.
 - **M6, API part:** the owner of a locked capsule now also gets its id, title and unlock date; the client starts

@@ -7,6 +7,10 @@ const BCRYPT_ROUNDS = 10;
 
 const findUserByEmail = (email) => prisma.user.findUnique({ where: { email } });
 
+// The public fields of the user with this id, or null if there is none.
+const findPublicUserById = (id) =>
+  prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
+
 // Prisma's error code for "this value is already in a unique column".
 const UNIQUE_VIOLATION = "P2002";
 
@@ -45,4 +49,10 @@ async function passwordMatches(user, password) {
 // The only user fields the API ever returns.
 const toPublicUser = (user) => ({ id: user.id, email: user.email });
 
-module.exports = { findUserByEmail, createUser, passwordMatches, toPublicUser };
+module.exports = {
+  findUserByEmail,
+  findPublicUserById,
+  createUser,
+  passwordMatches,
+  toPublicUser,
+};
