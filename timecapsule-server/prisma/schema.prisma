@@ -8,29 +8,109 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  password  String
-  capsules  Capsule[]
-  createdAt DateTime  @default(now())
+  id              Int         @id @default(autoincrement())
+  email           String      @unique
+  password        String
+  // When the owner proved the address is theirs, by opening the link we emailed
+  // (or by resetting the password). Until then the account can't log in.
+  emailVerifiedAt DateTime?
+  // Login tokens carry this number, and a token only works while it matches.
+  // Resetting the password increases it, which logs out every session.
+  tokenVersion    Int         @default(0)
+  capsules        Capsule[]
+  authTokens      AuthToken[]
+  emails          EmailLog[]
+  createdAt       DateTime    @default(now())
 }
 
 model Capsule {
-  id         Int      @id @default(autoincrement())
-  title      String
-  message    String
-  unlockDate DateTime
-  email      String? // Reserved for unlock emails (not used yet)
-  isPublic   Boolean  @default(false)
+  id                Int        @id @default(autoincrement())
+  title             String
+  message           String
+  unlockDate        DateTime
+  // Someone the owner wants the message emailed to when the capsule opens.
+  recipientEmail    String?
+  isPublic          Boolean    @default(false)
   // Every capsule has an owner; deleting a user deletes their capsules.
-  ownerId    Int
-  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  notified   Boolean  @default(false) // Reserved: has the unlock email been sent?
-  slug       String   @unique @default(uuid())
-  createdAt  DateTime @default(now())
+  ownerId           Int
+  owner             User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // The unlock emails are done: sent, or given up on after the email provider
+  // kept refusing them.
+  notified          Boolean    @default(false)
+  // A run of the unlock-email job is working on this capsule until then; other
+  // runs leave it alone. If that run crashes, the capsule is retried afterwards.
+  notifyLockedUntil DateTime?
+  // How many times the email provider refused one of this capsule's emails.
+  notifyAttempts    Int        @default(0)
+  emails            EmailLog[]
+  slug              String     @unique @default(uuid())
+  createdAt         DateTime   @default(now())
 
   // A user's capsule list: filtered by owner, sorted by unlock date.
   @@index([ownerId, unlockDate])
   // The unlock-email job: capsules not yet notified whose date has passed.
   @@index([notified, unlockDate])
+}
+
+enum AuthTokenKind {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// The secret in an emailed link (confirm an email address, reset a password).
+// Only its SHA-256 hash is stored, so the database alone can't be used to open
+// someone's links. Each one works once, until it expires.
+model AuthToken {
+  id           Int           @id @default(autoincrement())
+  kind         AuthTokenKind
+  tokenHash    String        @unique
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Confirmation links only: the bcrypt hash of the password chosen at the
+  // signup that sent this link, which becomes the password when it's opened.
+  passwordHash String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime      @default(now())
+
+  @@index([userId])
+}
+
+enum EmailKind {
+  VERIFY_EMAIL // a link to confirm the address, after signing up
+  ACCOUNT_EXISTS // someone tried to sign up with an address that has an account
+  RESET_PASSWORD // a link to choose a new password
+  CAPSULE_OPENED // to the owner, when their capsule opens
+  CAPSULE_DELIVERED // to the recipient the owner chose, with the message
+}
+
+enum EmailStatus {
+  SENDING // reserved, and handed to the provider (or about to be)
+  SENT // the provider accepted it
+  FAILED // the provider refused it, so it wasn't sent
+}
+
+// Every email the server sends or tries to send. The email provider's free plan
+// allows 100 a day, so these rows are what the daily, per-address and per-owner
+// limits count. A row is written before the email is sent, which reserves its
+// place in the day's quota.
+model EmailLog {
+  id         Int         @id @default(autoincrement())
+  kind       EmailKind
+  status     EmailStatus @default(SENDING)
+  address    String
+  userId     Int?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  capsuleId  Int?
+  capsule    Capsule?    @relation(fields: [capsuleId], references: [id], onDelete: SetNull)
+  // The provider's id for the email, once it accepted it.
+  providerId String?
+  // Why it failed, for the server's operators (never shown to users).
+  error      String?
+  createdAt  DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([address, createdAt])
+  @@index([userId, createdAt])
+  @@index([capsuleId])
 }

@@ -54,7 +54,7 @@ describe("POST /capsules", () => {
       slug: expect.stringMatching(UUID),
     });
     const stored = await prisma.capsule.findUnique({ where: { id: res.body.id } });
-    expect(stored).toMatchObject({ ownerId: ada.user.id, notified: false, email: null });
+    expect(stored).toMatchObject({ ownerId: ada.user.id, notified: false, recipientEmail: null });
   });
 
   test("stores isPublic: true", async () => {
@@ -180,7 +180,7 @@ describe("POST /capsules", () => {
 
     expect(capsule).toMatchObject({ title: "Hello future", message: "the secret" });
     const stored = await prisma.capsule.findUnique({ where: { id: capsule.id } });
-    expect(stored.email).toBeNull();
+    expect(stored.recipientEmail).toBeNull();
   });
 
   test("requires a token", async () => {
