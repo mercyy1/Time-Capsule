@@ -7,6 +7,9 @@ const { z } = require("zod");
 const SECRET_HINT =
   "Generate one with: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"";
 const PORT_ERROR = "must be a whole number from 1 to 65535";
+const TRUST_PROXY_ERROR =
+  "must be a whole number from 0 to 5: how many proxies in front of the server add " +
+  "the caller's address to X-Forwarded-For (0 when there are none)";
 const ORIGIN_ERROR =
   "must be an origin like https://example.com (no path, no trailing slash), " +
   "or several separated by commas";
@@ -45,6 +48,18 @@ const shape = {
     .refine((origins) => origins.every(isOrigin), { error: ORIGIN_ERROR })
     .transform((origins) => Object.freeze(origins))
     .optional(),
+  // How many proxies (a hosting provider's load balancer, for example) sit in front
+  // of the server. Each adds the address it got the request from to the
+  // X-Forwarded-For header, and the caller's real address is the one the farthest
+  // trusted proxy added. Rate limits count per address, so this must be exact:
+  // too low and every visitor shares the proxy's address; too high and callers can
+  // pick their own by sending a forged X-Forwarded-For.
+  TRUST_PROXY: z.coerce
+    .number({ error: TRUST_PROXY_ERROR })
+    .int({ error: TRUST_PROXY_ERROR })
+    .min(0, { error: TRUST_PROXY_ERROR })
+    .max(5, { error: TRUST_PROXY_ERROR })
+    .default(0),
 };
 
 const schema = z

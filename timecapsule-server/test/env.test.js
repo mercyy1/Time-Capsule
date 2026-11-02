@@ -21,6 +21,7 @@ test("applies defaults for the optional variables", () => {
     NODE_ENV: "development",
     PORT: 5000,
     CLIENT_ORIGIN: ["http://localhost:3000"],
+    TRUST_PROXY: 0,
   });
 });
 
@@ -30,12 +31,14 @@ test("reads every variable and turns PORT into a number", () => {
     NODE_ENV: "production",
     PORT: "8080",
     CLIENT_ORIGIN: "https://timecapsule.example",
+    TRUST_PROXY: "1",
   });
 
   expect(env).toMatchObject({
     NODE_ENV: "production",
     PORT: 8080,
     CLIENT_ORIGIN: ["https://timecapsule.example"],
+    TRUST_PROXY: 1,
   });
 });
 
@@ -116,6 +119,12 @@ test.each([
 ])("rejects a CLIENT_ORIGIN that isn't a bare origin (or a list of them): %s", (origin) => {
   expect(errorFor({ ...valid, CLIENT_ORIGIN: origin }).message).toMatch(
     /CLIENT_ORIGIN must be an origin/,
+  );
+});
+
+test.each(["-1", "6", "1.5", "true", "abc"])("rejects TRUST_PROXY=%s", (value) => {
+  expect(errorFor({ ...valid, TRUST_PROXY: value }).message).toMatch(
+    /TRUST_PROXY must be a whole number from 0 to 5/,
   );
 });
 
