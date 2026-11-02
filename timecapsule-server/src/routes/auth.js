@@ -20,7 +20,8 @@ router.post("/signup", async (req, res) => {
   const user = await createUser(email, password);
   if (!user) throw new HttpError(409, "EMAIL_TAKEN", "An account with this email already exists");
 
-  res.json({ token: generateAccessToken(user), user: toPublicUser(user) });
+  // 201 Created: the request made a new account.
+  res.status(201).json({ token: generateAccessToken(user), user: toPublicUser(user) });
 });
 
 router.post("/login", async (req, res) => {

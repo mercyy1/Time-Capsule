@@ -33,7 +33,8 @@ router.post("/", authenticate, async (req, res) => {
     unlockDate,
     isPublic,
   });
-  res.json(capsule);
+  // 201 Created, with the new capsule's address in the Location header.
+  res.status(201).location(`/capsules/slug/${capsule.slug}`).json(capsule);
 });
 
 // Opens a capsule for a signed-in user: its owner, or anyone if it is public.

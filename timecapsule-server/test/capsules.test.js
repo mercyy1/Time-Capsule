@@ -22,7 +22,7 @@ async function createCapsule(owner, fields = {}) {
       unlockDate: daysFromNow(30).toISOString(),
       ...fields,
     })
-    .expect(200);
+    .expect(201);
   return res.body;
 }
 
@@ -43,7 +43,8 @@ describe("POST /capsules", () => {
       .set("Authorization", ada.auth)
       .send({ title: "Hello future", message: "the secret", unlockDate });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
+    expect(res.headers.location).toBe(`/capsules/slug/${res.body.slug}`);
     expect(res.body).toEqual({
       id: expect.any(Number),
       title: "Hello future",

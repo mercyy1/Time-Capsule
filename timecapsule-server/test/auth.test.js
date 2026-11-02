@@ -11,12 +11,12 @@ afterAll(() => prisma.$disconnect());
 const verify = (token) => jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
 
 describe("POST /signup", () => {
-  test("creates the user and returns a token and the public user fields", async () => {
+  test("creates the user (201) and returns a token and the public user fields", async () => {
     const res = await request(app)
       .post("/signup")
       .send({ email: "ada@example.com", password: "password123" });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body).toEqual({
       token: expect.any(String),
       user: { id: expect.any(Number), email: "ada@example.com" },
@@ -71,7 +71,7 @@ describe("POST /signup", () => {
       .post("/signup")
       .send({ email: "  Ada@Example.COM ", password: "password123" });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body.user.email).toBe("ada@example.com");
 
     const again = await request(app)
@@ -109,7 +109,7 @@ describe("POST /signup", () => {
       .post("/signup")
       .send({ email: "c@example.com", password: "é".repeat(37) }); // 37 characters, 74 bytes
 
-    expect(ok.status).toBe(200);
+    expect(ok.status).toBe(201);
     expect(tooLong.status).toBe(400);
     expect(tooLong.body.error).toMatch(/^Password must be at most 72 bytes/);
     expect(accents.status).toBe(400);
@@ -165,7 +165,7 @@ describe("POST /signup", () => {
     const results = await Promise.all(Array.from({ length: 6 }, signup));
 
     const statuses = results.map((res) => res.status).sort();
-    expect(statuses).toEqual([200, 409, 409, 409, 409, 409]);
+    expect(statuses).toEqual([201, 409, 409, 409, 409, 409]);
     await expect(prisma.user.count()).resolves.toBe(1);
   });
 });
