@@ -6,6 +6,7 @@ const { RATE_LIMITS } = require("../../src/middleware/rateLimits");
 const { BackgroundTasks } = require("../../src/background");
 const mailers = require("../../src/email/mailers");
 const emailSender = require("../../src/email/sender");
+const unlockEmails = require("../../src/jobs/unlockEmails");
 const { createFakeMailer } = require("./mailer");
 
 // The real limits, but too high for any test to reach: each test file shares one
@@ -44,4 +45,5 @@ module.exports = {
   RATE_LIMITS,
   mailers,
   emailSender,
+  unlockEmails,
 };

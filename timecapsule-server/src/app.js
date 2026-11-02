@@ -8,6 +8,8 @@ const { createSender, emailLimits } = require("./email/sender");
 const { createAccounts } = require("./services/accounts");
 const { BackgroundTasks } = require("./background");
 const { createAuthRouter } = require("./routes/auth");
+const { createJobsRouter } = require("./routes/jobs");
+const { sendUnlockEmails } = require("./jobs/unlockEmails");
 const capsuleRoutes = require("./routes/capsules");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 
@@ -21,6 +23,7 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 //   emailLimits    how many emails may be sent (see email/sender.js)
 //   appUrl         the web client's address, for links in emails (APP_URL)
 //   tasks          runs work after responding (see background.js)
+//   jobSecret      the scheduler's password; without one, /jobs is off (JOB_SECRET)
 function createApp({
   clientOrigins = getEnv().CLIENT_ORIGIN,
   trustProxy = getEnv().TRUST_PROXY,
@@ -29,6 +32,7 @@ function createApp({
   emailLimits: limits = emailLimits(getEnv().EMAIL_DAILY_LIMIT),
   appUrl = getEnv().APP_URL,
   tasks = new BackgroundTasks(),
+  jobSecret = getEnv().JOB_SECRET,
 } = {}) {
   const app = express();
   const limiters = createRateLimiters(rateLimits);
@@ -65,6 +69,10 @@ function createApp({
   // signup, verify-email, login, forgot-password, reset-password
   app.use(createAuthRouter({ accounts, sender, tasks }));
   app.use("/capsules", capsuleRoutes);
+  if (jobSecret) {
+    const runUnlockEmails = () => sendUnlockEmails({ sender, appUrl });
+    app.use("/jobs", createJobsRouter({ jobSecret, runUnlockEmails }));
+  }
 
   app.use(notFound);
   app.use(errorHandler);

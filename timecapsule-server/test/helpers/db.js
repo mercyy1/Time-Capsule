@@ -30,9 +30,10 @@ function seedCapsule({
   title = "Seeded",
   message = "seeded message",
   recipientEmail = null,
+  createdAt = undefined, // now
 }) {
   return prisma.capsule.create({
-    data: { ownerId, unlockDate, isPublic, title, message, recipientEmail },
+    data: { ownerId, unlockDate, isPublic, title, message, recipientEmail, createdAt },
   });
 }
 
