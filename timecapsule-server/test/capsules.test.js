@@ -71,7 +71,11 @@ describe("POST /capsules", () => {
     expect(stored.unlockDate.toISOString()).toBe("2031-03-14T04:30:00.000Z");
   });
 
-  test.each(["title", "message", "unlockDate"])("rejects a missing %s with 400", async (field) => {
+  test.each([
+    ["title", "Title is required"],
+    ["message", "Message is required"],
+    ["unlockDate", "Unlock date is required"],
+  ])("rejects a missing %s with 400", async (field, message) => {
     const ada = await signUp();
     const body = { title: "Hello", message: "secret", unlockDate: daysFromNow(30).toISOString() };
     delete body[field];
@@ -79,38 +83,90 @@ describe("POST /capsules", () => {
     const res = await request(app).post("/capsules").set("Authorization", ada.auth).send(body);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Missing required fields", code: "VALIDATION_FAILED" });
+    expect(res.body).toEqual({
+      error: message,
+      code: "VALIDATION_FAILED",
+      details: [{ field, message }],
+    });
   });
 
-  test("rejects an unlock date that isn't a date", async () => {
+  // Each case changes one field of an otherwise valid capsule.
+  const DATE_FORMAT_ERROR =
+    "Unlock date must be a date and time with a time zone, like 2030-01-01T09:00:00Z";
+  test.each([
+    ["an unlock date that isn't a date", { unlockDate: "next tuesday" }, DATE_FORMAT_ERROR],
+    ["an unlock date without a time zone", { unlockDate: "2030-01-01T00:00" }, DATE_FORMAT_ERROR],
+    ["an impossible calendar date", { unlockDate: "2031-02-30T10:00:00Z" }, DATE_FORMAT_ERROR],
+    [
+      "an unlock date in the past",
+      { unlockDate: daysFromNow(-1).toISOString() },
+      "Unlock date must be in the future",
+    ],
+    [
+      "an unlock date more than 50 years ahead",
+      { unlockDate: "9999-12-31T00:00:00Z" },
+      "Unlock date must be at most 50 years from now",
+    ],
+    ['isPublic as the string "false"', { isPublic: "false" }, "isPublic must be true or false"],
+    ["a number as title", { title: 42 }, "Title must be text"],
+    ["a title of only spaces", { title: "   " }, "Title is required"],
+    [
+      "a title over 200 characters",
+      { title: "t".repeat(201) },
+      "Title must be at most 200 characters",
+    ],
+    [
+      "a message over 10,000 characters",
+      { message: "m".repeat(10_001) },
+      "Message must be at most 10,000 characters",
+    ],
+  ])("rejects %s with 400 and stores nothing", async (_case, change, message) => {
     const ada = await signUp();
+    const log = jest.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await request(app)
       .post("/capsules")
       .set("Authorization", ada.auth)
-      .send({ title: "Hello", message: "secret", unlockDate: "next tuesday" });
+      .send({
+        title: "Hello",
+        message: "secret",
+        unlockDate: daysFromNow(30).toISOString(),
+        ...change,
+      });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({
-      error: "unlockDate is not a valid date",
-      code: "VALIDATION_FAILED",
-    });
-  });
-
-  test("rejects an unlock date in the past", async () => {
-    const ada = await signUp();
-
-    const res = await request(app)
-      .post("/capsules")
-      .set("Authorization", ada.auth)
-      .send({ title: "Hello", message: "secret", unlockDate: daysFromNow(-1).toISOString() });
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({
-      error: "unlockDate must be in the future",
-      code: "VALIDATION_FAILED",
-    });
+    expect(res.body).toMatchObject({ error: message, code: "VALIDATION_FAILED" });
     await expect(prisma.capsule.count()).resolves.toBe(0);
+    // Bad input is turned away before Prisma, which would log the whole call, message included.
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  test("accepts the longest title and message and a date 49 years ahead", async () => {
+    const ada = await signUp();
+
+    const capsule = await createCapsule(ada, {
+      title: "t".repeat(200),
+      message: "m".repeat(10_000),
+      unlockDate: daysFromNow(49 * 365).toISOString(),
+    });
+
+    expect(capsule.title).toHaveLength(200);
+    expect(capsule.message).toHaveLength(10_000);
+  });
+
+  test("trims the title and message, and ignores fields it doesn't know such as email", async () => {
+    const ada = await signUp();
+
+    const capsule = await createCapsule(ada, {
+      title: "  Hello future  ",
+      message: "\n  the secret \n",
+      email: "someone@example.com",
+    });
+
+    expect(capsule).toMatchObject({ title: "Hello future", message: "the secret" });
+    const stored = await prisma.capsule.findUnique({ where: { id: capsule.id } });
+    expect(stored.email).toBeNull();
   });
 
   test("requires a token", async () => {

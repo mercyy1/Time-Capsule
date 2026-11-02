@@ -7,6 +7,9 @@ const { z } = require("zod");
 const EMAIL_MAX_LENGTH = 254; // the longest address email standards allow
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_BYTES = 72; // bcrypt ignores anything after the first 72 bytes
+const TITLE_MAX_LENGTH = 200;
+const MESSAGE_MAX_LENGTH = 10_000;
+const MAX_YEARS_AHEAD = 50;
 
 // Messages for a field that is missing or isn't a string.
 const text = (label) => ({
@@ -43,4 +46,45 @@ const loginBody = body({
   password: z.string(text("Password")).min(1, { error: "Password is required" }),
 });
 
-module.exports = { signupBody, loginBody };
+const yearsFromNow = (years) => {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() + years);
+  return date;
+};
+
+const trimmedText = (label, maxLength) =>
+  z
+    .string(text(label))
+    .trim()
+    .min(1, { error: `${label} is required` })
+    .max(maxLength, {
+      error: `${label} must be at most ${maxLength.toLocaleString("en-US")} characters`,
+    });
+
+// An instant, so it must say which time zone it is in: "Z" (UTC) or an offset
+// such as +05:30. A bare "2030-01-01T09:00" would be read in the server's zone.
+const unlockDate = z.iso
+  .datetime({
+    offset: true,
+    error: (issue) =>
+      issue.input === undefined
+        ? "Unlock date is required"
+        : "Unlock date must be a date and time with a time zone, like 2030-01-01T09:00:00Z",
+  })
+  .transform((value) => new Date(value))
+  .refine((date) => date > new Date(), { error: "Unlock date must be in the future" })
+  .refine((date) => date <= yearsFromNow(MAX_YEARS_AHEAD), {
+    error: `Unlock date must be at most ${MAX_YEARS_AHEAD} years from now`,
+  });
+
+// The client also sends `email`; it is dropped (with any other unknown field)
+// until Phase 3 decides what it means.
+const newCapsuleBody = body({
+  title: trimmedText("Title", TITLE_MAX_LENGTH),
+  message: trimmedText("Message", MESSAGE_MAX_LENGTH),
+  unlockDate,
+  // A real boolean: the string "false" is rejected rather than read as true.
+  isPublic: z.boolean({ error: "isPublic must be true or false" }).default(false),
+});
+
+module.exports = { signupBody, loginBody, newCapsuleBody };

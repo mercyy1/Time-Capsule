@@ -1,5 +1,7 @@
 const express = require("express");
 const { HttpError } = require("../errors");
+const { parse } = require("../validation");
+const { newCapsuleBody } = require("../schemas");
 const { authenticate } = require("../middleware/authenticate");
 const capsules = require("../services/capsules");
 
@@ -12,22 +14,14 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 router.post("/", authenticate, async (req, res) => {
-  const { title, message, unlockDate, isPublic } = req.body;
-  if (!title || !message || !unlockDate)
-    throw new HttpError(400, "VALIDATION_FAILED", "Missing required fields");
-
-  const unlockAt = new Date(unlockDate);
-  if (Number.isNaN(unlockAt.getTime()))
-    throw new HttpError(400, "VALIDATION_FAILED", "unlockDate is not a valid date");
-  if (unlockAt <= new Date())
-    throw new HttpError(400, "VALIDATION_FAILED", "unlockDate must be in the future");
+  const { title, message, unlockDate, isPublic } = parse(newCapsuleBody, req.body);
 
   const capsule = await capsules.createCapsule({
     ownerId: req.user.id,
     title,
     message,
-    unlockDate: unlockAt,
-    isPublic: Boolean(isPublic),
+    unlockDate,
+    isPublic,
   });
   res.json(capsule);
 });
