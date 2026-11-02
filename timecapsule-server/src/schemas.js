@@ -41,7 +41,15 @@ const newPassword = z
     error: `Password must be at most ${PASSWORD_MAX_BYTES} bytes (accented letters and emoji count as 2 to 4 bytes each)`,
   });
 
-const signupBody = body({ email, password: newPassword });
+// The token from the robot check (see ../captcha.js). Whether it's needed, and
+// whether it's genuine, is the route's business; Turnstile's are at most 2048
+// characters.
+const captchaToken = z
+  .string(text("The security check"))
+  .max(2048, { error: "The security check's answer is too long" })
+  .optional();
+
+const signupBody = body({ email, password: newPassword, captchaToken });
 
 // Login takes any password: a wrong one simply doesn't match.
 const loginBody = body({
@@ -55,7 +63,7 @@ const linkToken = z.string(text("Token")).max(100, { error: "Token is too long" 
 
 const verifyEmailBody = body({ token: linkToken });
 
-const forgotPasswordBody = body({ email });
+const forgotPasswordBody = body({ email, captchaToken });
 
 const resetPasswordBody = body({ token: linkToken, password: newPassword });
 

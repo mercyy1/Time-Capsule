@@ -19,18 +19,30 @@ const EMAIL_FROM_ERROR =
   'must be an address like capsules@example.com, or a name and an address like "TimeCapsule <capsules@example.com>"';
 const RESEND_KEY_ERROR = "must be a Resend API key (they start with re_)";
 const DAILY_LIMIT_ERROR = "must be a whole number from 10 to 1000000";
+const TURNSTILE_SECRET_ERROR =
+  "must be the secret key of a Cloudflare Turnstile widget (in the widget's settings)";
+// Cloudflare's test secret keys: with them every check passes (1x), fails (2x)
+// or counts as already used (3x), whoever is asking. Right for development and
+// tests, useless against bots.
+const TURNSTILE_TEST_SECRETS = new Set([
+  "1x0000000000000000000000000000000AA",
+  "2x0000000000000000000000000000000AA",
+  "3x0000000000000000000000000000000AA",
+]);
 const DEFAULT_CLIENT_ORIGIN = "http://localhost:3000";
 
 // What production can't run without. Locally the server works without them:
 // links in emails point at the local client, emails are printed in the server's
-// log instead of sent (no RESEND_API_KEY), and the unlock-email job runs from
-// the command line (no JOB_SECRET, so its HTTP endpoint is off).
+// log instead of sent (no RESEND_API_KEY), the unlock-email job runs from the
+// command line (no JOB_SECRET, so its HTTP endpoint is off), and nobody is asked
+// to prove they're human (no TURNSTILE_SECRET_KEY).
 const REQUIRED_IN_PRODUCTION = [
   "CLIENT_ORIGIN",
   "APP_URL",
   "EMAIL_FROM",
   "RESEND_API_KEY",
   "JOB_SECRET",
+  "TURNSTILE_SECRET_KEY",
 ];
 
 // Browsers send the page's origin (scheme, host and port, e.g. https://example.com)
@@ -97,6 +109,13 @@ const shape = {
     .string()
     .min(32, { error: `must be at least 32 characters. ${SECRET_HINT}` })
     .optional(),
+  // The secret key of the Cloudflare Turnstile widget that checks a person, not a
+  // bot, is signing up or asking for a password reset (see src/captcha.js).
+  // Without it, the check is off.
+  TURNSTILE_SECRET_KEY: z
+    .string()
+    .regex(/^\S{20,200}$/, { error: TURNSTILE_SECRET_ERROR })
+    .optional(),
   // How many emails the email provider lets us send per day (UTC). Resend's free
   // plan: 100. The server's own limits are shares of it.
   EMAIL_DAILY_LIMIT: z.coerce
@@ -125,6 +144,15 @@ schema = schema
     path: ["EMAIL_FROM"],
     when: always,
   })
+  .refine(
+    (env) => env.NODE_ENV !== "production" || !TURNSTILE_TEST_SECRETS.has(env.TURNSTILE_SECRET_KEY),
+    {
+      error:
+        "is one of Cloudflare's test keys, which let every visitor through: use the widget's own secret key",
+      path: ["TURNSTILE_SECRET_KEY"],
+      when: always,
+    },
+  )
   .transform((env) => ({
     ...env,
     CLIENT_ORIGIN: env.CLIENT_ORIGIN ?? Object.freeze([DEFAULT_CLIENT_ORIGIN]),

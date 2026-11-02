@@ -7,6 +7,7 @@ const { BackgroundTasks } = require("../../src/background");
 const mailers = require("../../src/email/mailers");
 const emailSender = require("../../src/email/sender");
 const unlockEmails = require("../../src/jobs/unlockEmails");
+const captcha = require("../../src/captcha");
 const status = require("../../src/routes/status");
 const shutdown = require("../../src/shutdown");
 const errorHandling = require("../../src/middleware/errorHandler");
@@ -49,6 +50,7 @@ module.exports = {
   mailers,
   emailSender,
   unlockEmails,
+  captcha,
   status,
   shutdown,
   errorHandling,

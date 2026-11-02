@@ -15,9 +15,11 @@ Object.assign(process.env, {
   TRUST_PROXY: "0",
   APP_URL: "http://localhost:3000",
   EMAIL_DAILY_LIMIT: "100",
-  // Empty means not set. Tests never reach a real email provider: they give the
-  // app a fake mailer (test/helpers/mailer.js) and, where needed, a job secret.
+  // Empty means not set. Tests never reach a real email provider or Cloudflare:
+  // they give the app a fake mailer (test/helpers/mailer.js) and, where needed, a
+  // job secret or a fake captcha.
   EMAIL_FROM: "",
   RESEND_API_KEY: "",
   JOB_SECRET: "",
+  TURNSTILE_SECRET_KEY: "",
 });

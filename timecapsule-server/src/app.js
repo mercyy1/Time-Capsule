@@ -8,6 +8,7 @@ const { createMailer } = require("./email/mailers");
 const { createSender, emailLimits } = require("./email/sender");
 const { createAccounts } = require("./services/accounts");
 const { BackgroundTasks } = require("./background");
+const { createCaptcha } = require("./captcha");
 const { createAuthRouter } = require("./routes/auth");
 const { createJobsRouter } = require("./routes/jobs");
 const { createStatusRouter } = require("./routes/status");
@@ -26,6 +27,8 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 //   appUrl         the web client's address, for links in emails (APP_URL)
 //   tasks          runs work after responding (see background.js)
 //   jobSecret      the scheduler's password; without one, /jobs is off (JOB_SECRET)
+//   captcha        tells people from bots on signup and "forgot password" (see
+//                  captcha.js); null turns the check off (TURNSTILE_SECRET_KEY)
 //   checkDatabase  resolves once the database answers, for GET /health
 function createApp({
   clientOrigins = getEnv().CLIENT_ORIGIN,
@@ -36,6 +39,7 @@ function createApp({
   appUrl = getEnv().APP_URL,
   tasks = new BackgroundTasks(),
   jobSecret = getEnv().JOB_SECRET,
+  captcha = createCaptcha(getEnv()),
   checkDatabase = () => prisma.$queryRaw`SELECT 1`,
 } = {}) {
   const app = express();
@@ -71,7 +75,7 @@ function createApp({
   app.post(["/signup", "/verify-email", "/forgot-password", "/reset-password"], limiters.auth);
   app.post("/login", limiters.auth, limiters.failedLogins);
   // signup, verify-email, login, forgot-password, reset-password
-  app.use(createAuthRouter({ accounts, sender, tasks }));
+  app.use(createAuthRouter({ accounts, sender, tasks, captcha }));
   app.use("/capsules", capsuleRoutes);
   if (jobSecret) {
     const runUnlockEmails = () => sendUnlockEmails({ sender, appUrl });
