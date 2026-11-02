@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
+import Layout from "./components/Layout";
 import Signup from "./pages/SignUp";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -15,42 +16,44 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/create"
-            element={
-              <ProtectedRoute>
-                <CreateCapsule />
-              </ProtectedRoute>
-            }
-          />
-          {/* Linked from the email its owner gets when it opens. */}
-          <Route
-            path="/capsule/:slug"
-            element={
-              <ProtectedRoute>
-                <ViewCapsule />
-              </ProtectedRoute>
-            }
-          />
+        <Layout>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/create"
+              element={
+                <ProtectedRoute>
+                  <CreateCapsule />
+                </ProtectedRoute>
+              }
+            />
+            {/* Linked from the email its owner gets when it opens. */}
+            <Route
+              path="/capsule/:slug"
+              element={
+                <ProtectedRoute>
+                  <ViewCapsule />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/public/:slug" element={<PublicCapsule />} />
-          {/* Opened from links in emails. */}
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/public/:slug" element={<PublicCapsule />} />
+            {/* Opened from links in emails. */}
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
       </BrowserRouter>
     </AuthProvider>
   );

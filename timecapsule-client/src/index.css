@@ -1,23 +1,256 @@
 @import "tailwindcss";
 
-/* Tailwind 4 changed two defaults; these keep the v3 look until the redesign. */
+/*
+  TimeCapsule's look: a capsule is a letter to the future. Sealed capsules are
+  airmail envelopes (striped border, a stamp counting the days); opened ones are
+  plain letters with their fold creases. Everything else stays quiet.
+*/
+
+@theme {
+  /* Archivo (a grotesque with width axes) for the interface; Newsreader (a book
+     serif) only for the letters themselves. Both are bundled, not fetched. */
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-letter: "Newsreader Variable", Georgia, Cambria, "Times New Roman", serif;
+
+  --color-desk: #e8ecf1; /* the page: a post-office counter */
+  --color-sheet: #fbfcfd; /* envelopes, letters, fields */
+  --color-ink: #1d2742; /* text: blue-black ink */
+  --color-slate: #5c6680; /* secondary text */
+  --color-rule: #c3cbd8; /* hairlines and field borders */
+  --color-airmail-blue: #2a4b9b; /* links, focus, the stamp */
+  --color-airmail-red: #c8323b; /* errors, Delete */
+
+  /* A classic scale (14, 16, 18, 21, 24, 36, 48). */
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.55;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 1.1;
+  --text-4xl: 3rem;
+  --text-4xl--line-height: 1.05;
+}
+
 @layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-desk);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-airmail-blue) 22%, transparent);
+  }
+  /* One focus style everywhere, for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--color-airmail-blue);
+    outline-offset: 2px;
+  }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   input::placeholder,
   textarea::placeholder {
-    color: var(--color-gray-400);
+    color: color-mix(in oklab, var(--color-slate) 70%, transparent);
   }
 }
 
-.input {
-  @apply border border-gray-300 rounded-sm px-3 py-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500;
+@layer components {
+  /* Headings and the wordmark: Archivo at its widest. */
+  .display {
+    font-stretch: 125%;
+    font-weight: 720;
+    letter-spacing: -0.01em;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.5rem 1.125rem;
+    border: 1.5px solid transparent;
+    border-radius: 4px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s,
+      color 0.15s;
+  }
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    color: var(--color-sheet);
+  }
+  .btn-secondary {
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+  }
+  .btn-danger {
+    background: var(--color-airmail-red);
+    color: #fff;
+  }
+  .btn-danger-outline {
+    border-color: var(--color-airmail-red);
+    color: var(--color-airmail-red);
+  }
+  @media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+      background: color-mix(in oklab, var(--color-ink) 82%, var(--color-airmail-blue));
+    }
+    .btn-secondary:hover:not(:disabled),
+    .btn-danger-outline:hover:not(:disabled) {
+      background: color-mix(in oklab, currentColor 7%, transparent);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: color-mix(in oklab, var(--color-airmail-red) 85%, black);
+    }
+  }
+
+  .link {
+    color: var(--color-airmail-blue);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  .field-input {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1.5px solid var(--color-rule);
+    border-radius: 4px;
+    background: var(--color-sheet);
+    color: var(--color-ink);
+  }
+  .field-input:hover {
+    border-color: var(--color-slate);
+  }
+  .field-input:focus-visible {
+    border-color: var(--color-airmail-blue);
+    outline-offset: 0;
+  }
+  .field-input[aria-invalid="true"] {
+    border-color: var(--color-airmail-red);
+  }
+
+  /* A plain sheet of paper: forms and notices sit on these. */
+  .sheet {
+    background: var(--color-sheet);
+    border: 1px solid color-mix(in oklab, var(--color-ink) 9%, transparent);
+    border-radius: 3px;
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--color-ink) 8%, transparent);
+  }
+
+  /* A sealed capsule: an airmail envelope, its border striped red and blue. */
+  .envelope {
+    --edge: 8px;
+    --stripe: 11px;
+    border: var(--edge) solid transparent;
+    border-radius: 3px;
+    background:
+      linear-gradient(var(--color-sheet) 0 0) padding-box,
+      repeating-linear-gradient(
+          135deg,
+          var(--color-airmail-red) 0 var(--stripe),
+          transparent var(--stripe) calc(var(--stripe) * 1.5),
+          var(--color-airmail-blue) calc(var(--stripe) * 1.5) calc(var(--stripe) * 2.5),
+          transparent calc(var(--stripe) * 2.5) calc(var(--stripe) * 3)
+        )
+        border-box,
+      var(--color-sheet) border-box;
+    box-shadow:
+      0 1px 0 color-mix(in oklab, var(--color-ink) 8%, transparent),
+      0 12px 24px -16px color-mix(in oklab, var(--color-ink) 45%, transparent);
+  }
+  .envelope-lg {
+    --edge: 12px;
+    --stripe: 16px;
+  }
+
+  /* An opened capsule: a letter, still showing where it was folded in three. */
+  .letter {
+    --crease: color-mix(in oklab, var(--color-ink) 7%, transparent);
+    --shine: rgb(255 255 255 / 0.7);
+    background:
+      linear-gradient(
+        to bottom,
+        transparent calc(100% / 3 - 1px),
+        var(--crease) calc(100% / 3 - 1px) calc(100% / 3),
+        var(--shine) calc(100% / 3) calc(100% / 3 + 1px),
+        transparent calc(100% / 3 + 1px) calc(200% / 3 - 1px),
+        var(--crease) calc(200% / 3 - 1px) calc(200% / 3),
+        var(--shine) calc(200% / 3) calc(200% / 3 + 1px),
+        transparent calc(200% / 3 + 1px)
+      ),
+      var(--color-sheet);
+    border: 1px solid color-mix(in oklab, var(--color-ink) 9%, transparent);
+    border-radius: 2px;
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--color-ink) 8%, transparent);
+  }
+
+  /* The stamp on an envelope, with perforated edges: its value is the time left. */
+  .stamp {
+    filter: drop-shadow(0 1px 1px color-mix(in oklab, var(--color-ink) 30%, transparent));
+    rotate: 2deg;
+  }
+  .stamp-paper {
+    --hole: 3px;
+    --step: 9px;
+    padding: calc(var(--hole) * 2 + 2px);
+    background: var(--color-sheet);
+    mask:
+      radial-gradient(circle var(--hole) at center, #0000 calc(100% - 0.5px), #000)
+        calc(var(--step) / -2) calc(var(--step) / -2) / var(--step) var(--step) round,
+      linear-gradient(#000 0 0) content-box;
+  }
+  .stamp-face {
+    display: grid;
+    place-content: center;
+    gap: 0.125rem;
+    min-width: 4.25rem;
+    padding: 0.5rem 0.5rem 0.375rem;
+    border: 1.5px solid var(--color-airmail-blue);
+    background: color-mix(in oklab, var(--color-airmail-blue) 9%, var(--color-sheet));
+    color: var(--color-airmail-blue);
+    text-align: center;
+  }
 }
-.btn {
-  @apply px-4 py-2 rounded-sm font-semibold;
-}
-.btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700;
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
