@@ -24,7 +24,7 @@ test(
     await expect(page.getByLabel("Email")).toHaveValue(email);
     await page.getByLabel("Password").fill(settings.PASSWORD);
     await page.getByRole("button", { name: "Log in" }).click();
-    await expect(page.getByRole("heading", { name: "Your Time Capsules" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your capsules" })).toBeVisible();
   },
 );
 
@@ -75,7 +75,7 @@ test("a new password logs you in here and out everywhere else", async ({
   const elsewhere = await (await browser.newContext()).newPage();
   await logIn(elsewhere, account);
   await elsewhere.goto("/");
-  await expect(elsewhere.getByRole("heading", { name: "Your Time Capsules" })).toBeVisible();
+  await expect(elsewhere.getByRole("heading", { name: "Your capsules" })).toBeVisible();
 
   await page.goto("/login");
   await page.getByRole("link", { name: "Forgot your password?" }).click();
@@ -88,7 +88,8 @@ test("a new password logs you in here and out everywhere else", async ({
   await page.getByLabel("New password").fill("a brand new password");
   await page.getByLabel("Type it again").fill("a brand new password");
   await page.getByRole("button", { name: "Save and log in" }).click();
-  await expect(page.getByRole("heading", { name: "Your Time Capsules" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your capsules" })).toBeVisible();
+  await expect(page.getByText("Your new password is saved.")).toBeVisible();
 
   // The other device's next request is refused, and it's sent to log in again.
   await elsewhere.reload();
