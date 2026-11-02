@@ -66,11 +66,11 @@ describe("POST /signup", () => {
     expect((await login("ada@example.com")).status).toBe(200);
   });
 
-  test("signs a one-day HS256 token holding the user's id and email", async () => {
+  test("signs a one-day HS256 token holding the user's id, email and token version", async () => {
     const { token, user } = await signUp("ada@example.com");
 
     const payload = verify(token);
-    expect(payload).toMatchObject({ id: user.id, email: "ada@example.com" });
+    expect(payload).toMatchObject({ id: user.id, email: "ada@example.com", ver: 0 });
     expect(payload.exp - payload.iat).toBe(24 * 60 * 60);
   });
 
@@ -523,7 +523,7 @@ describe("token check on protected routes", () => {
 
   test("401 for a token signed with HS512, even with the right secret (was accepted)", async () => {
     const { user } = await signUp();
-    const hs512 = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, {
+    const hs512 = jwt.sign({ id: user.id, email: user.email, ver: 0 }, process.env.JWT_SECRET, {
       algorithm: "HS512",
     });
 
@@ -555,7 +555,7 @@ describe("token check on protected routes", () => {
   test("401 TOKEN_EXPIRED (was 403) for an expired token", async () => {
     const { user } = await signUp();
     const expired = jwt.sign(
-      { id: user.id, email: user.email, exp: Math.floor(Date.now() / 1000) - 60 },
+      { id: user.id, email: user.email, ver: 0, exp: Math.floor(Date.now() / 1000) - 60 },
       process.env.JWT_SECRET,
     );
 
@@ -592,7 +592,7 @@ describe("token check on protected routes", () => {
   test("401 (was 403) for a token signed with a different secret", async () => {
     const { user } = await signUp();
     const forged = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, ver: 0 },
       "some-other-secret-at-least-32-chars-long",
     );
 
@@ -600,5 +600,40 @@ describe("token check on protected routes", () => {
 
     expect(res.status).toBe(401);
     expect(res.body).toEqual(INVALID_TOKEN);
+  });
+
+  test("401 for a token made before token versions existed (no ver)", async () => {
+    const { user } = await signUp();
+    const old = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+
+    const res = await get(`Bearer ${old}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(INVALID_TOKEN);
+  });
+
+  test("401 TOKEN_REVOKED once the account's token version has moved on (password changed)", async () => {
+    const ada = await signUp();
+    await prisma.user.update({
+      where: { id: ada.user.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    const res = await get(ada.auth);
+
+    expect(res.status).toBe(401);
+    expect(res.headers["www-authenticate"]).toBe(
+      'Bearer error="invalid_token", error_description="The token has been revoked"',
+    );
+    expect(res.body).toEqual({
+      error: "You've been logged out because your password was changed. Please log in again.",
+      code: "TOKEN_REVOKED",
+    });
+    // A new login gets a token with the new version, which works.
+    const again = await login(ada.user.email);
+    expect(verify(again.body.token).ver).toBe(1);
+    expect((await get(`Bearer ${again.body.token}`)).status).toBe(200);
   });
 });

@@ -7,9 +7,10 @@ const BCRYPT_ROUNDS = 10;
 
 const findUserByEmail = (email) => prisma.user.findUnique({ where: { email } });
 
-// The public fields of the user with this id, or null if there is none.
-const findPublicUserById = (id) =>
-  prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
+// What checking a login token needs to know about its user (the public fields
+// and the token version), or null if there is no user with this id.
+const findUserForToken = (id) =>
+  prisma.user.findUnique({ where: { id }, select: { id: true, email: true, tokenVersion: true } });
 
 // Prisma's error code for "this value is already in a unique column".
 const UNIQUE_VIOLATION = "P2002";
@@ -54,7 +55,7 @@ const toPublicUser = (user) => ({ id: user.id, email: user.email });
 
 module.exports = {
   findUserByEmail,
-  findPublicUserById,
+  findUserForToken,
   hashPassword,
   createUser,
   passwordMatches,
