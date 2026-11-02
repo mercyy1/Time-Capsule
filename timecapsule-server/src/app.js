@@ -3,7 +3,7 @@ const cors = require("cors");
 const { getEnv } = require("./config/env");
 const authRoutes = require("./routes/auth");
 const capsuleRoutes = require("./routes/capsules");
-const { errorHandler } = require("./middleware/errorHandler");
+const { errorHandler, notFound } = require("./middleware/errorHandler");
 
 // Builds the Express app without starting it, so tests can send it requests directly.
 function createApp() {
@@ -18,6 +18,7 @@ function createApp() {
   app.use(authRoutes); // POST /signup, POST /login
   app.use("/capsules", capsuleRoutes);
 
+  app.use(notFound);
   app.use(errorHandler);
   return app;
 }

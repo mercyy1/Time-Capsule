@@ -79,7 +79,7 @@ describe("POST /capsules", () => {
     const res = await request(app).post("/capsules").set("Authorization", ada.auth).send(body);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Missing required fields" });
+    expect(res.body).toEqual({ error: "Missing required fields", code: "VALIDATION_FAILED" });
   });
 
   test("rejects an unlock date that isn't a date", async () => {
@@ -91,7 +91,10 @@ describe("POST /capsules", () => {
       .send({ title: "Hello", message: "secret", unlockDate: "next tuesday" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "unlockDate is not a valid date" });
+    expect(res.body).toEqual({
+      error: "unlockDate is not a valid date",
+      code: "VALIDATION_FAILED",
+    });
   });
 
   test("rejects an unlock date in the past", async () => {
@@ -103,7 +106,10 @@ describe("POST /capsules", () => {
       .send({ title: "Hello", message: "secret", unlockDate: daysFromNow(-1).toISOString() });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "unlockDate must be in the future" });
+    expect(res.body).toEqual({
+      error: "unlockDate must be in the future",
+      code: "VALIDATION_FAILED",
+    });
     await expect(prisma.capsule.count()).resolves.toBe(0);
   });
 
@@ -221,7 +227,7 @@ describe("GET /capsules/slug/:slug", () => {
     const res = await open(capsule.slug, bob);
 
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(res.body).toEqual({ error: "Unauthorized", code: "FORBIDDEN" });
   });
 
   test("stranger, public and locked: only the status and unlock time", async () => {
@@ -265,7 +271,7 @@ describe("GET /capsules/slug/:slug", () => {
     const res = await open("00000000-0000-4000-8000-000000000000", ada);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Not found" });
+    expect(res.body).toEqual({ error: "Not found", code: "NOT_FOUND" });
   });
 
   test("requires a token, even for a public capsule", async () => {
@@ -321,14 +327,14 @@ describe("GET /capsules/public/:slug", () => {
       .set("Authorization", ada.auth);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Capsule not found or not public" });
+    expect(res.body).toEqual({ error: "Capsule not found or not public", code: "NOT_FOUND" });
   });
 
   test("404 for a slug that doesn't exist", async () => {
     const res = await request(app).get("/capsules/public/00000000-0000-4000-8000-000000000000");
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Capsule not found or not public" });
+    expect(res.body).toEqual({ error: "Capsule not found or not public", code: "NOT_FOUND" });
   });
 });
 
@@ -352,7 +358,7 @@ describe("DELETE /capsules/:id", () => {
     const res = await request(app).delete(`/capsules/${capsule.id}`).set("Authorization", bob.auth);
 
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Access denied" });
+    expect(res.body).toEqual({ error: "Access denied", code: "FORBIDDEN" });
     await expect(prisma.capsule.findUnique({ where: { id: capsule.id } })).resolves.not.toBeNull();
   });
 
@@ -362,7 +368,7 @@ describe("DELETE /capsules/:id", () => {
     const res = await request(app).delete("/capsules/999999").set("Authorization", ada.auth);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: "Capsule not found" });
+    expect(res.body).toEqual({ error: "Capsule not found", code: "NOT_FOUND" });
   });
 
   test("400 for an id that isn't a number", async () => {
@@ -371,7 +377,7 @@ describe("DELETE /capsules/:id", () => {
     const res = await request(app).delete("/capsules/abc").set("Authorization", ada.auth);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Invalid capsule id" });
+    expect(res.body).toEqual({ error: "Invalid capsule id", code: "VALIDATION_FAILED" });
   });
 
   test("requires a token", async () => {

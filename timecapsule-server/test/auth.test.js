@@ -46,7 +46,7 @@ describe("POST /signup", () => {
     const res = await request(app).post("/signup").send(body);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Email and password required" });
+    expect(res.body).toEqual({ error: "Email and password required", code: "VALIDATION_FAILED" });
   });
 
   test("rejects a password shorter than 8 characters", async () => {
@@ -55,7 +55,10 @@ describe("POST /signup", () => {
       .send({ email: "ada@example.com", password: "1234567" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Password must be at least 8 characters" });
+    expect(res.body).toEqual({
+      error: "Password must be at least 8 characters",
+      code: "VALIDATION_FAILED",
+    });
     await expect(prisma.user.count()).resolves.toBe(0);
   });
 
@@ -67,7 +70,7 @@ describe("POST /signup", () => {
       .send({ email: "ada@example.com", password: "another-password" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Email already exists" });
+    expect(res.body).toEqual({ error: "Email already exists", code: "EMAIL_TAKEN" });
     await expect(prisma.user.count()).resolves.toBe(1);
   });
 });
@@ -96,7 +99,7 @@ describe("POST /login", () => {
       .send({ email: "ada@example.com", password: "wrong-password" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Invalid credentials" });
+    expect(res.body).toEqual({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
   });
 
   test("gives an unknown email the same answer as a wrong password", async () => {
@@ -105,14 +108,14 @@ describe("POST /login", () => {
       .send({ email: "nobody@example.com", password: "password123" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Invalid credentials" });
+    expect(res.body).toEqual({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
   });
 
   test("rejects missing fields with 400", async () => {
     const res = await request(app).post("/login").send({ email: "ada@example.com" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Email and password required" });
+    expect(res.body).toEqual({ error: "Email and password required", code: "VALIDATION_FAILED" });
   });
 });
 
@@ -121,21 +124,21 @@ describe("token check on protected routes", () => {
     const res = await request(app).get("/capsules");
 
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: "No token provided" });
+    expect(res.body).toEqual({ error: "No token provided", code: "AUTH_REQUIRED" });
   });
 
   test("401 when the header has no token after the scheme", async () => {
     const res = await request(app).get("/capsules").set("Authorization", "Bearer");
 
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: "Malformed token" });
+    expect(res.body).toEqual({ error: "Malformed token", code: "AUTH_REQUIRED" });
   });
 
   test("403 for a token that isn't a valid JWT", async () => {
     const res = await request(app).get("/capsules").set("Authorization", "Bearer not-a-real-token");
 
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Invalid token" });
+    expect(res.body).toEqual({ error: "Invalid token", code: "INVALID_TOKEN" });
   });
 
   test("403 for an expired token", async () => {
@@ -148,7 +151,7 @@ describe("token check on protected routes", () => {
     const res = await request(app).get("/capsules").set("Authorization", `Bearer ${expired}`);
 
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Invalid token" });
+    expect(res.body).toEqual({ error: "Invalid token", code: "INVALID_TOKEN" });
   });
 
   test("403 for a token signed with a different secret", async () => {
@@ -161,6 +164,6 @@ describe("token check on protected routes", () => {
     const res = await request(app).get("/capsules").set("Authorization", `Bearer ${forged}`);
 
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "Invalid token" });
+    expect(res.body).toEqual({ error: "Invalid token", code: "INVALID_TOKEN" });
   });
 });
