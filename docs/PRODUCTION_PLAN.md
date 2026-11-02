@@ -6,7 +6,8 @@
 >
 > **Progress:** Phase 1 done on 2026-11-01 (branch `phase-1-foundations`; notes under Phase 1). Phase 2 done on
 > 2026-11-01 (branch `phase-2-security`; notes under Phase 2). Phase 3 done on 2026-11-02 (branch
-> `phase-3-notifications`; notes under Phase 3).
+> `phase-3-notifications`; notes under Phase 3). Phase 4 done on 2026-11-02 (branch `phase-4-frontend`; notes under
+> Phase 4).
 
 ## 1. Summary
 
@@ -380,6 +381,52 @@ no route behaves differently.
    expired-session handling and the protected `/capsule/:slug` already exist since Phase 3.
 6. Playwright end-to-end test of the main flow, including a capsule seeded with a past unlock date to check the
    unlocked view.
+
+**Status: done.** Decisions and what changed from the plan while doing it:
+- **The look.** A capsule is a letter to the future, so the design borrows from airmail: a sealed capsule is an
+  envelope with a red-and-blue striped border and a stamp whose value is the time left; an opened one is a letter.
+  Archivo (a wide sans-serif) for the interface, Newsreader (a book serif) for the letters themselves; a blue-grey
+  page, blue-black ink, airmail red and blue (the colors and type scale are in `timecapsule-client/src/index.css`).
+  Both fonts are bundled with the site, so no page asks a font service for anything. The one animation is a capsule
+  unfolding into a letter when it opens while you watch, left out when the system asks for reduced motion.
+- **Tailwind 4 first, in its own commit,** so renamed utilities didn't get mixed into the redesign. It needs
+  Safari 16.4, Chrome 111 or Firefox 128 or newer (all from 2023); older browsers get unstyled pages.
+- **Every screen's states (M4, L8):** loading, empty, failed (with Try again) and an ended session. No `alert()` or
+  `confirm()` is left: Delete asks in the page's own dialog (the native `<dialog>` element, which blocks the rest
+  of the page while it's open; its first button, "Keep it", gets the focus). A message for the next page ("Your capsule is sealed.")
+  shows once and is then taken out of the browser history, so reloading doesn't show it again.
+- **Capsule pages (M6, M7, L1):** the API now says `isOwner`, so only the owner sees Delete, the share link and who
+  else gets the capsule by email; anyone else gets "Write your own". Every dashboard card opens the owner's page,
+  shared or not. A sealed capsule shows its title (to the owner), the opening time and a countdown with days. The
+  page asks the API again only when the countdown ends, not every 10 seconds. The server opens a capsule by its own
+  clock, which can be a little behind the browser's, so the page asks again after 2, 4, 8 and 15 seconds, then says
+  to reload in a minute.
+- **The stamp rounds down** ("74 days" until fewer than 74 full days are left), like a count of days left; the
+  countdown under it is exact to the second and rounds seconds up, so it reads 0 only at the moment itself.
+- **Time zones (L5):** every date is shown in the reader's time zone with its abbreviation ("EST"); the form names
+  the zone ("Eastern Time (Toronto)") and says exactly when the capsule will open. On the nights clocks change, a
+  time that doesn't exist opens at the same time after the jump (2:30 becomes 3:30) and one that happens twice opens
+  the first time, and the form says which before sealing. Browsers still name a few zones after a city's old name
+  (Chrome reports India as `Asia/Calcutta`); those show the current name. The Kolkata test caught that one.
+- **Keyboard and screen readers (M14, L8):** every field has a label, read together with its hint and error; each
+  dashboard card is one link stretched over the card (a single Tab stop; Enter opens it); focus is visible
+  everywhere; when a sent form gives way to its next step, the focus moves to the new heading; the countdown is a
+  `timer`, which screen readers read when asked rather than every second; every page names its browser tab.
+- **Phone screens:** the large stamp shrinks on phones, and long unbroken titles and addresses wrap instead of
+  widening the page.
+- **End-to-end tests** (`e2e/`, 24 tests, under a minute): accounts (signup to login, form errors, a new link for
+  an unconfirmed login, a new password logging out other browsers, a broken reset link); capsules (writing one
+  through the form and its checks, copying the link and deleting, a seeded opened capsule, a stranger's view, a
+  countdown reaching zero, an expired session); the dashboard (order, search, keyboard, the API unreachable); no
+  page scrolling sideways; and the form in Kolkata, in Toronto on both clock-change nights, and in Sydney. Tests
+  tagged `@phone` also run on a Pixel 7-sized touch screen. They run in the installed Google Chrome only; Firefox and
+  Safari (WebKit) can be added to Phase 5's CI.
+- **Removed:** Create React App's leftovers in `public/` (`favicon.ico`, `logo192.png`, `logo512.png`,
+  `manifest.json`), replaced by an SVG airmail-envelope icon.
+- `npm audit`:
+  - Client: none in production dependencies (the two font packages are new); the same 6 moderate inside ESLint.
+  - E2E (development tools only): the same 6 moderate inside ESLint.
+  - Server: unchanged; this phase only added `isOwner`.
 
 ### Phase 5 — Deploy + CI (`phase-5-deploy`)
 1. GitHub Actions on every PR: lint, server tests with a Postgres service container, client build, Playwright.

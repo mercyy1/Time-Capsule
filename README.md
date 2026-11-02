@@ -8,6 +8,7 @@
 - **Locking enforced on the server:** until the unlock date, the API returns a capsule's title and date (to its owner) but never its message, so the lock can't be bypassed from the browser
 - **Private or shareable:** private capsules are visible only to their owner; public ones get a random share link (`slug`) that anyone can open once the capsule unlocks
 - **Emailed when it opens:** the owner gets an email with a link to the capsule, and a recipient the owner named gets the message itself
+- **A wait you can see:** a sealed capsule is an airmail envelope whose stamp shows the time left, its page counts down to the second, and it unfolds into a letter when it opens. Every date is shown in your own time zone, named, and the form warns you about the nights the clocks change
 - **Accounts:** sign up with an email address you confirm through an emailed link, log in with a password hashed by bcrypt, stay signed in with a JWT (a signed token the client sends with each request), and reset a forgotten password by email
 
 ## Tech stack
@@ -19,7 +20,8 @@
 | Auth | bcrypt password hashing + JWT bearer tokens |
 | Email | [Resend](https://resend.com)'s HTTP API; printed in the server's log when no API key is set |
 | Scheduler | [cron-job.org](https://cron-job.org) calls the unlock-email job every 30 minutes |
-| Frontend | React 19 + Vite + Tailwind CSS (`timecapsule-client/`) |
+| Frontend | React 19 + React Router 7 + Vite + Tailwind CSS 4 (`timecapsule-client/`) |
+| Tests | Jest + Supertest for the API; Playwright end to end, in Chrome (`e2e/`) |
 
 ## API
 
@@ -149,13 +151,27 @@ one). It checks them at startup and exits with a list of anything missing or inv
 
 The client needs `VITE_API_URL`, the API's address, in `timecapsule-client/.env`.
 
+## The web app
+
+- **Pages:** sign up, log in, confirm your email, forgot and reset password; your capsules (`/`), write one
+  (`/create`), a capsule (`/capsule/:slug`: its owner's view, or anyone's shared capsule once logged in) and the share
+  link (`/public/:slug`, no account needed).
+- **Browsers:** Safari 16.4, Chrome and Edge 111, Firefox 128 or newer (what Tailwind CSS 4 needs), on computers and
+  phones.
+- **Keyboard and screen readers:** every field is labelled and read together with its hint and error, focus is
+  always visible, each capsule on the dashboard is one Tab stop, and the animation is left out when your system asks
+  for reduced motion.
+- **Your login** is a token kept in the browser's `localStorage`. It works for a day and logging out removes it; when
+  it stops working (expired, or the password was reset), the app says so, sends you to log in, then takes you back to
+  the page you were on.
+
 ## Tests and code style
 
 ```bash
 cd timecapsule-server
 npm test                      # integration tests against the timecapsule_test database
-npm run lint                  # ESLint (also in timecapsule-client)
-npm run format                # Prettier (also in timecapsule-client)
+npm run lint                  # ESLint (also in timecapsule-client and e2e)
+npm run format                # Prettier (also in timecapsule-client and e2e)
 ```
 
 The tests empty the test database before each test and refuse to run against a database whose name doesn't end in `_test`.
@@ -173,7 +189,10 @@ npm test                      # builds the client, starts both apps on ports 310
 npx playwright test --ui      # the same, with Playwright's window to watch or debug them
 ```
 
-The test API writes its emails to `e2e/.outbox/emails.jsonl`, and the tests open the links in them.
+The test API writes its emails to `e2e/.outbox/emails.jsonl`, and the tests open the links in them. The tests cover
+the account pages and their emails, writing, sharing, opening and deleting capsules, the dashboard, pages that must
+not scroll sideways, and the form in other time zones (India, Toronto on both clock-change nights, Sydney). Tests
+tagged `@phone` also run on a Pixel 7-sized touch screen.
 
 ## Data model
 
