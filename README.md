@@ -162,6 +162,19 @@ The tests empty the test database before each test and refuse to run against a d
 They set that database's time zone to Toronto's, so SQL that mixes up UTC and local time fails them. Emails go to a fake
 mailer that records them; no test reaches a real email provider.
 
+**End-to-end tests** ([Playwright](https://playwright.dev)) drive the built web client and the API together in Google
+Chrome, against their own database (`timecapsule_e2e`, created on the first run and emptied before each run). They
+need the database running, Chrome installed, and both apps' dependencies installed (`npm ci` in each folder):
+
+```bash
+cd e2e
+npm ci
+npm test                      # builds the client, starts both apps on ports 3100 and 5100, runs the tests
+npx playwright test --ui      # the same, with Playwright's window to watch or debug them
+```
+
+The test API writes its emails to `e2e/.outbox/emails.jsonl`, and the tests open the links in them.
+
 ## Data model
 
 - **User:** email (unique), a bcrypt-hashed password, when the address was confirmed (`emailVerifiedAt`), and a
