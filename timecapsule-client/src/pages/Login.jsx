@@ -1,11 +1,15 @@
 import { useForm } from "react-hook-form";
 import { useAuth } from "../context/AuthContext";
 import api from "../api";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useState } from "react";
 
 export default function Login() {
-  const { register, handleSubmit } = useForm();
+  const location = useLocation();
+  // Filled in when coming from the "email confirmed" page.
+  const { register, handleSubmit } = useForm({
+    defaultValues: { email: location.state?.email ?? "" },
+  });
   const { login } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
@@ -37,6 +41,7 @@ export default function Login() {
           {...register("password", { required: true })}
           type="password"
           placeholder="Password"
+          autoComplete="current-password"
           className="input"
           required
         />
@@ -45,6 +50,11 @@ export default function Login() {
         </button>
       </form>
       <p className="mt-4 text-center">
+        <Link to="/forgot-password" className="text-blue-600 hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="mt-2 text-center">
         Don't have an account?{" "}
         <Link to="/signup" className="text-blue-600 hover:underline">
           Sign up

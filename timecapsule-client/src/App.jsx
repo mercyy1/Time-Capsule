@@ -7,6 +7,9 @@ import CreateCapsule from "./pages/CreateCapsule";
 import ViewCapsule from "./pages/ViewCapsule";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicCapsule from "./pages/PublicCapsule";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 export default function App() {
   return (
@@ -34,6 +37,10 @@ export default function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/public/:slug" element={<PublicCapsule />} />
+          {/* Opened from links in emails. */}
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
