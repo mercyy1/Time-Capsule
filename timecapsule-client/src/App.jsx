@@ -32,7 +32,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/capsule/:slug" element={<ViewCapsule />} />
+          {/* Linked from the email its owner gets when it opens. */}
+          <Route
+            path="/capsule/:slug"
+            element={
+              <ProtectedRoute>
+                <ViewCapsule />
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />

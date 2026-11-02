@@ -10,16 +10,18 @@ export default function Login() {
   const { register, handleSubmit } = useForm({
     defaultValues: { email: location.state?.email ?? "" },
   });
-  const { login } = useAuth();
+  const { login, sessionEnded } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
+  // Where the user was going when they were sent here (see ProtectedRoute).
+  const from = location.state?.from;
 
   const onSubmit = async (data) => {
     setError(null);
     try {
       const res = await api.post("/login", data);
       login(res.data.user, res.data.token);
-      navigate("/");
+      navigate(from ? `${from.pathname}${from.search}` : "/", { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || "Login failed");
     }
@@ -28,6 +30,7 @@ export default function Login() {
   return (
     <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded shadow">
       <h2 className="text-2xl mb-6 font-semibold">Log In</h2>
+      {sessionEnded && !error && <p className="mb-4 text-gray-700">{sessionEnded}</p>}
       {error && <p className="mb-4 text-red-600">{error}</p>}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <input

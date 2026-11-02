@@ -15,8 +15,9 @@ export default function Dashboard() {
       try {
         const res = await api.get("/capsules");
         setCapsules(res.data);
-      } catch {
-        alert("Failed to load capsules");
+      } catch (err) {
+        // 401: the session ended, and AuthProvider is taking the user to log in.
+        if (err.response?.status !== 401) alert("Failed to load capsules");
       }
       setLoading(false);
     }
