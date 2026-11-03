@@ -6,7 +6,7 @@ The TimeCapsule web app: React 19, React Router 7, react-hook-form and Tailwind 
 ## Run it locally
 
 ```bash
-cp .env.example .env   # VITE_API_URL: where the API runs
+cp .env.example .env   # VITE_API_URL: where the API runs; the security check stays off
 npm ci
 npm run dev            # http://localhost:3000
 ```
@@ -15,14 +15,14 @@ The API (`../timecapsule-server`) must be running at `VITE_API_URL`.
 
 ## Scripts
 
-| Command                | What it does                                         |
-| ---------------------- | ---------------------------------------------------- |
-| `npm run dev`          | Dev server with hot reload on port 3000              |
-| `npm run build`        | Production build into `dist/` (needs `VITE_API_URL`) |
-| `npm run preview`      | Serve the production build locally on port 3000      |
-| `npm run lint`         | ESLint                                               |
-| `npm run format`       | Prettier: rewrites the files                         |
-| `npm run format:check` | Prettier: only checks them                           |
+| Command                | What it does                                              |
+| ---------------------- | --------------------------------------------------------- |
+| `npm run dev`          | Dev server with hot reload on port 3000                   |
+| `npm run build`        | Production build into `dist/` (needs `VITE_API_URL`)      |
+| `npm run preview`      | Serve the production build on port 3000, with its headers |
+| `npm run lint`         | ESLint                                                    |
+| `npm run format`       | Prettier: rewrites the files                              |
+| `npm run format:check` | Prettier: only checks them                                |
 
 ## Where things are
 
@@ -30,6 +30,10 @@ The API (`../timecapsule-server`) must be running at `VITE_API_URL`.
 - `src/components/`: what the pages share: the page frame (`Layout`), form fields (`Field`), notices, the sealed
   envelope (`SealedCapsule`, `Stamp`, `Countdown`) and the letter (`OpenedLetter`).
 - `src/api.js`: the API client. A 401 from an ended session logs out and says why (`src/context/AuthProvider.jsx`).
+- `src/useSecurityCheck.js`, `src/securityCheck.js` and `components/SecurityCheck.jsx`: Cloudflare Turnstile's
+  check on signup and "forgot password" (off without `VITE_TURNSTILE_SITE_KEY`).
+- `vite.config.js`: also writes `dist/_headers`, the Content-Security-Policy and other headers Cloudflare Pages serves
+  the site with.
 - `src/time.js`: dates in the reader's time zone, the countdown's arithmetic, and reading the date field (including
   the times the clocks skip or repeat).
 - `src/index.css`: the design: colors, fonts and type scale (Tailwind's `@theme`), and the envelope, letter and stamp.

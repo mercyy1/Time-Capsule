@@ -1,5 +1,7 @@
 const { parseEnv, EnvError } = require("../src/config/env");
 
+const TURNSTILE_SECRET = "0x4AAAAAAAexample-widget-secret-key";
+
 const valid = {
   DATABASE_URL: "postgresql://user:pass@localhost:5432/timecapsule",
   JWT_SECRET: "a".repeat(32),
@@ -38,6 +40,7 @@ test("reads every variable and turns PORT into a number", () => {
     EMAIL_FROM: "TimeCapsule <capsules@timecapsule.example>",
     RESEND_API_KEY: "re_123456789",
     JOB_SECRET: "j".repeat(32),
+    TURNSTILE_SECRET_KEY: TURNSTILE_SECRET,
     EMAIL_DAILY_LIMIT: "3000",
   });
 
@@ -50,6 +53,7 @@ test("reads every variable and turns PORT into a number", () => {
     EMAIL_FROM: "TimeCapsule <capsules@timecapsule.example>",
     RESEND_API_KEY: "re_123456789",
     JOB_SECRET: "j".repeat(32),
+    TURNSTILE_SECRET_KEY: TURNSTILE_SECRET,
     EMAIL_DAILY_LIMIT: 3000,
   });
 });
@@ -146,10 +150,17 @@ test("rejects an unknown NODE_ENV", () => {
   );
 });
 
-test("requires the client, email and job settings in production, listed with the other problems", () => {
+test("requires the client, email, job and security-check settings in production, listed with the other problems", () => {
   const err = errorFor({ DATABASE_URL: valid.DATABASE_URL, NODE_ENV: "production" });
 
-  for (const name of ["CLIENT_ORIGIN", "APP_URL", "EMAIL_FROM", "RESEND_API_KEY", "JOB_SECRET"]) {
+  for (const name of [
+    "CLIENT_ORIGIN",
+    "APP_URL",
+    "EMAIL_FROM",
+    "RESEND_API_KEY",
+    "JOB_SECRET",
+    "TURNSTILE_SECRET_KEY",
+  ]) {
     expect(err.message).toMatch(new RegExp(`${name} is required when NODE_ENV is production`));
   }
   expect(err.message).toMatch(/JWT_SECRET is required/);
@@ -164,6 +175,7 @@ test("in production, a malformed setting is reported once, as malformed", () => 
     EMAIL_FROM: "capsules@timecapsule.example",
     RESEND_API_KEY: "re_123",
     JOB_SECRET: "too-short",
+    TURNSTILE_SECRET_KEY: TURNSTILE_SECRET,
   });
 
   expect(err.message).toMatch(/JOB_SECRET must be at least 32 characters/);
@@ -227,6 +239,61 @@ describe("email settings", () => {
   });
 });
 
+describe("security check settings", () => {
+  // With them, Cloudflare passes (1x), fails (2x) or refuses as reused (3x) every check.
+  const TEST_SECRETS = [
+    "1x0000000000000000000000000000000AA",
+    "2x0000000000000000000000000000000AA",
+    "3x0000000000000000000000000000000AA",
+  ];
+  const production = {
+    ...valid,
+    NODE_ENV: "production",
+    CLIENT_ORIGIN: "https://timecapsule.example",
+    APP_URL: "https://timecapsule.example",
+    EMAIL_FROM: "capsules@timecapsule.example",
+    RESEND_API_KEY: "re_123",
+    JOB_SECRET: "j".repeat(32),
+  };
+
+  test("reads the widget's secret key", () => {
+    expect(
+      parseEnv({ ...valid, TURNSTILE_SECRET_KEY: TURNSTILE_SECRET }).TURNSTILE_SECRET_KEY,
+    ).toBe(TURNSTILE_SECRET);
+  });
+
+  test.each(["too-short", "0x4AAAAAAA with spaces in it", "x".repeat(201)])(
+    "rejects TURNSTILE_SECRET_KEY=%s",
+    (secret) => {
+      expect(errorFor({ ...valid, TURNSTILE_SECRET_KEY: secret }).message).toMatch(
+        /TURNSTILE_SECRET_KEY must be the secret key of a Cloudflare Turnstile widget/,
+      );
+    },
+  );
+
+  test.each(TEST_SECRETS)("rejects Cloudflare's test key %s in production", (secret) => {
+    expect(errorFor({ ...production, TURNSTILE_SECRET_KEY: secret }).message).toMatch(
+      /TURNSTILE_SECRET_KEY is one of Cloudflare's test keys/,
+    );
+  });
+
+  test("accepts the test keys outside production", () => {
+    for (const NODE_ENV of ["development", "test"]) {
+      for (const secret of TEST_SECRETS) {
+        expect(
+          parseEnv({ ...valid, NODE_ENV, TURNSTILE_SECRET_KEY: secret }).TURNSTILE_SECRET_KEY,
+        ).toBe(secret);
+      }
+    }
+  });
+
+  test("accepts a real widget's key in production", () => {
+    expect(
+      parseEnv({ ...production, TURNSTILE_SECRET_KEY: TURNSTILE_SECRET }).TURNSTILE_SECRET_KEY,
+    ).toBe(TURNSTILE_SECRET);
+  });
+});
+
 test("never includes the values in the error message", () => {
   const err = errorFor({
     DATABASE_URL: "mysql://admin:hunter2-db-password@db.internal/app",
@@ -234,6 +301,7 @@ test("never includes the values in the error message", () => {
     CLIENT_ORIGIN: "https://secret-host.example/path",
     RESEND_API_KEY: "not-a-key-hunter3",
     JOB_SECRET: "job-hunter4",
+    TURNSTILE_SECRET_KEY: "hunter5 has a space",
   });
 
   expect(err.message).not.toMatch(/hunter|short-but-secret|secret-host/);

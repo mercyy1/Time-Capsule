@@ -1,0 +1,64 @@
+# Render Blueprint: the API as a free web service. Render reads this file when
+# you create the service from it (Dashboard → New → Blueprint), and again on
+# every push to main (settings marked "sync: false" are asked for once, then
+# left alone). https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: timecapsule-api
+    runtime: node
+    plan: free
+    # Next to Neon's us-east-2 (Ohio) database, so each query is a short trip.
+    region: ohio
+    rootDir: timecapsule-server
+    # Installs the API (which also generates the Prisma client), then applies
+    # the committed migrations (prisma/migrations) to the database. Render's
+    # pre-deploy command, the usual place for migrations, is for paid plans
+    # only. If the migrations fail, the deploy fails and the previous version
+    # keeps running; a migration must also suit the code it replaces, which
+    # runs until the new version is up.
+    buildCommand: npm ci && npx prisma migrate deploy
+    # node itself, not npm start, so the server gets Render's SIGTERM directly
+    # and can finish its requests and emails before stopping (src/shutdown.js).
+    startCommand: node src/server.js
+    # GET / answers without the database, so Render's checks don't keep Neon's
+    # free database awake (GET /health is the one that asks the database).
+    healthCheckPath: /
+    # Deploys a push to main only once GitHub's checks (CI) have passed.
+    autoDeployTrigger: checksPass
+    # How long Render waits after SIGTERM before stopping the server for good
+    # (the server gives up waiting at 25 seconds).
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render's proxy adds one address to X-Forwarded-For. Checked on the live
+      # API with GET /ip (see the README's deploy steps).
+      - key: TRUST_PROXY
+        value: "1"
+      # Random 256-bit secrets, made once by Render. JOB_SECRET also goes in
+      # the cron-job.org job's Authorization header.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JOB_SECRET
+        generateValue: true
+      # Asked for when the Blueprint is created (see the README):
+      # Neon's pooled connection string (host name with -pooler), for the app.
+      - key: DATABASE_URL
+        sync: false
+      # Neon's direct connection string, for migrations.
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      # The web client's address (both, comma-separated, if it has two).
+      - key: CLIENT_ORIGIN
+        sync: false
+      # The web client's address, for the links in emails.
+      - key: APP_URL
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: EMAIL_DAILY_LIMIT
+        value: "100"

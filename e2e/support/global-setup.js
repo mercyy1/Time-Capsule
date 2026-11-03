@@ -27,7 +27,12 @@ function migrate() {
     // Also creates the database the first time.
     execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], {
       cwd: serverDir,
-      env: { ...process.env, DATABASE_URL: settings.DATABASE_URL },
+      // Migrations use the direct connection (see the server's prisma/schema.prisma).
+      env: {
+        ...process.env,
+        DATABASE_URL: settings.DATABASE_URL,
+        DATABASE_URL_UNPOOLED: settings.DATABASE_URL,
+      },
       encoding: "utf8",
       stdio: "pipe",
     });

@@ -11,6 +11,7 @@ const {
 const { findUserByEmail, passwordMatches, toPublicUser } = require("../services/users");
 const { generateAccessToken } = require("../services/tokens");
 const { secondsUntilNextUtcDay } = require("../email/sender");
+const { CaptchaUnavailableError } = require("../captcha");
 
 // The same answer for an unknown email and a wrong password, so a failed login
 // doesn't reveal which emails have accounts.
@@ -20,9 +21,40 @@ const invalidCredentials = () =>
   });
 
 // The account routes. `accounts` runs the flows (../services/accounts.js),
-// `sender` knows the email limits, and `tasks` runs work after responding.
-function createAuthRouter({ accounts, sender, tasks }) {
+// `sender` knows the email limits, `tasks` runs work after responding, and
+// `captcha` tells people from bots (../captcha.js; null turns the check off).
+function createAuthRouter({ accounts, sender, tasks, captcha = null }) {
   const router = express.Router();
+
+  // Signup and "forgot password" email whatever address they're given, so they
+  // first check that a person is asking: a bot repeating them would use up the
+  // day's emails. The answer is the same whatever the address, so it reveals
+  // nothing about who has an account.
+  async function requireHuman(token) {
+    if (!captcha) return;
+    let human = false;
+    if (token) {
+      try {
+        human = await captcha.verify(token);
+      } catch (err) {
+        if (!(err instanceof CaptchaUnavailableError)) throw err;
+        // Logged: a refused secret key needs someone to fix the settings.
+        console.error("The security check is unavailable:", err.message);
+        throw new HttpError(
+          503,
+          "CAPTCHA_UNAVAILABLE",
+          "The security check isn't working right now. Please try again in a few minutes.",
+        );
+      }
+    }
+    if (!human) {
+      throw new HttpError(
+        400,
+        "CAPTCHA_FAILED",
+        "The security check didn't go through. Please try again.",
+      );
+    }
+  }
 
   // A route that sends an account email answers 503 once today's emails are used
   // up, instead of promising an email that can't be sent. The limit is the same
@@ -38,7 +70,8 @@ function createAuthRouter({ accounts, sender, tasks }) {
   }
 
   router.post("/signup", async (req, res) => {
-    const { email, password } = parse(signupBody, req.body);
+    const { email, password, captchaToken } = parse(signupBody, req.body);
+    await requireHuman(captchaToken);
     await refuseWhenOutOfEmails();
 
     // Everything else happens after responding, so the answer and the time it
@@ -90,7 +123,8 @@ function createAuthRouter({ accounts, sender, tasks }) {
   });
 
   router.post("/forgot-password", async (req, res) => {
-    const { email } = parse(forgotPasswordBody, req.body);
+    const { email, captchaToken } = parse(forgotPasswordBody, req.body);
+    await requireHuman(captchaToken);
     await refuseWhenOutOfEmails();
 
     // After responding, like signup: the answer, and the time it takes, are the
